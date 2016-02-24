@@ -12,9 +12,9 @@
 (def register-task (partial swap! task-graph assoc))
 
 (defmacro deftask 
-  [task & args]
+  [task [& args] & body]
   `(do
-     (defnk ~task ~@args)
+     (defnk ~task [~@args] ~@body)
      (register-task ~(keyword task)
                     (vary-meta ~task (partial merge (meta (var ~task)))))))
 

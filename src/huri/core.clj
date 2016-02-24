@@ -1,13 +1,15 @@
 (ns huri.core
-  (:require [plumbing.core :refer [distinct-by distinct-fast sum map-vals
-                                   map-from-vals map-from-keys fn->> for-map]]
+  (:require [huri.schema :refer [defcoercer]]
+            (plumbing [core :refer [distinct-by distinct-fast sum map-vals
+                                    map-from-vals map-from-keys fn->> for-map
+                                    safe-get]]
+                      [map :refer [safe-select-keys]])
             [clj-time.core :as t]
             [net.cgrand.xforms :as x]
             [clojure.data.priority-map :refer [priority-map-by]]
             [clojure.math.numeric-tower :refer [ceil expt round]]
             [cheshire.core :as json]
-            (schema [core :as s]
-                    [coerce :as s.coerce])            
+            (schema [core :as s])            
             [clojure.java.io :as io])
   (:import org.joda.time.DateTime))
 
@@ -27,41 +29,9 @@
     (when (every? some? args)
       (apply f args))))
 
-(defn Row
-  [cols]
-  (if-let [cols (seq (filter keyword? cols))]                  
-    (map-from-keys (constantly s/Any) (conj cols s/Any))
-    s/Any))
-
-(defn DataFrame
-  [cols]
-  [(Row cols)])
-
-(defn validate-head
-  [schema xs]
-  (s/validate schema (take 1 xs)))
-
-(defn rollup
-  ([groupfn f df]
-   {:pre [(validate-head (DataFrame [groupfn]) df)]}
-   (into (sorted-map) 
-     (x/by-key groupfn (comp (x/into []) (map f)))       	
-     df))
-  ([groupfn f keyfn df]
-   {:pre [(validate-head (DataFrame [groupfn keyfn]) df)]}
-   (rollup groupfn (comp f (partial map keyfn)) df)))
-
-(def rollup-vals (comp vals rollup))
-
-(defn window
-  ([summary-fn df]
-   (window summary-fn identity df))
-  ([summary-fn keyfn df]
-   (window 1 summary-fn keyfn df))
-  ([lag summary-fn keyfn df]
-   {:pre [(validate-head (DataFrame [keyfn]) df)]}
-   (let [xs (map keyfn df)]
-     (map summary-fn (drop lag xs) xs))))
+(defn transpose
+  [m]
+  (apply map vector m))
 
 (defn any-of
   [& keyfns]
@@ -73,39 +43,72 @@
   {:combinator every-pred
    :keyfns keyfns})
 
-(def Pred (s/pred ifn?))
+(s/defschema Pred (s/pred ifn?))
 
-(def KeySpec {:combinator (s/pred ifn?)
-              :keyfns [(s/pred ifn?)]})
+(s/defschema KeyFn (s/pred ifn?))
 
-(def Filters {KeySpec Pred})
+(s/defschema KeyCombinator {:combinator (s/pred ifn?)
+                            :keyfns [KeyFn]})
 
-(def filters-coercer
-  (s.coerce/coercer Filters {KeySpec (fn [x]
-                                       (if (s/check KeySpec x)
-                                         {:combinator identity
-                                          :keyfns [x]}
-                                         x))
-                             Pred (fn [x]
-                                    (cond                             
-                                      (vector? x) #(apply (first x) % (rest x))
-                                      (ifn? x) x
-                                      :else (partial = x)))
-                             Filters (fn [x]
-                                       (if (map? x)
-                                         x
-                                         {identity x}))}))
+(s/defschema Filters {KeyCombinator Pred})
+
+(defcoercer ->keyfn KeyFn
+  [x]
+  (if (keyword? x)
+    #(safe-get % x)
+    x))
+
+(defcoercer ->pred Pred
+  [x]
+  (cond                             
+    (vector? x) #(apply (first x) % (rest x))
+    (ifn? x) x
+    :else (partial = x)))
+
+(defcoercer ->key-combinator KeyCombinator
+  [x]
+  (if (s/check KeyCombinator x)
+    {:combinator identity
+     :keyfns [x]}
+    x))
+
+(defcoercer ->filters Filters
+  [x]
+  (if (map? x)
+    x
+    {identity x}))
+
+(defn col
+  [k df]
+  (map (->keyfn k) df))
 
 (defn where
   [filters df]
-  (let [filters (filters-coercer filters)]
-    (validate-head (DataFrame (mapcat (comp :keyfns key) filters)) df)
-    (into (empty df)
-      (->> (for [[{:keys [combinator keyfns]} pred] filters]
-             (apply combinator (map (partial comp pred) keyfns)))
-           (apply every-pred)
-           filter)
-      df)))
+  (into (empty df)
+    (->> (for [[{:keys [combinator keyfns]} pred] (->filters filters)]
+           (apply combinator (map (partial comp pred) keyfns)))
+         (apply every-pred)
+         filter)
+    df))
+
+(defn rollup
+  ([groupfn f df]
+   (into (sorted-map) 
+     (x/by-key (->keyfn groupfn) (comp (x/into []) (map f)))       	
+     df))
+  ([groupfn f keyfn df]
+   (rollup groupfn (comp f (partial col keyfn)) df)))
+
+(def rollup-vals (comp vals rollup))
+
+(defn window
+  ([summary-fn df]
+   (window summary-fn identity df))
+  ([summary-fn keyfn df]
+   (window 1 summary-fn keyfn df))
+  ([lag summary-fn keyfn df]
+   (let [xs (col keyfn df)]
+     (map summary-fn (drop lag xs) xs))))
 
 (defn size
   [df]
@@ -120,22 +123,26 @@
    (for-map [[as [f k filters]] (map-vals ensure-seq summary-fn)]
      as (summary f (or k identity) (cond->> df filters (where filters)))))
   ([summary-fn keyfn df]
-   {:pre [(validate-head (DataFrame [keyfn]) df)]}
    (if (vector? summary-fn)
      (map #(summary % keyfn df) summary-fn)     
-     (apply summary-fn (map #(map % df) (ensure-seq keyfn))))))
+     (apply summary-fn (map #(col % df) (ensure-seq keyfn))))))
 
-(defn update-rows
+(defn update-cols
   [update-fns df]
-  {:pre [(validate-head (DataFrame (keys update-fns)) df)]}
-  (map (apply comp (for [[k v] update-fns]
-                     #(update % k v)))
+  (map (apply comp (for [[k f] update-fns]
+                     #(update % k f)))
        df))
 
-(defn assoc-rows
+(defn assoc-cols
   [new-cols df]
-  (map (apply comp (for [[k v] new-cols]
-                     #(assoc % k (v %))))
+  (map (apply comp (for [[k f] new-cols]
+                     #(assoc % k (f %))))
+       df))
+
+(defn derive-cols
+  [new-cols df]
+  (map (apply comp (for [[k [f & cols]] new-cols]
+                     #(assoc % k (apply f (map (comp % ->keyfn) cols)))))
        df))
 
 (defn ->data-frame
@@ -147,14 +154,12 @@
 
 (defn mask
   [cols df]
-  {:pre [(validate-head (DataFrame cols) df)]}
-  (map #(select-keys % cols) df))
+  (map #(safe-select-keys % cols) df))
 
 (defn join
   [left right [left-key right-key] & {:keys [inner-join?]}]
-  {:pre [(validate-head (DataFrame [left-key]) left)
-         (validate-head (DataFrame [right-key]) right)]}
-  (let [index (map-from-vals right-key right)]
+  (let [left-key (->keyfn left-key)
+        index (map-from-vals (->keyfn right-key) right)]
     (for [row left
           :when (index (left-key row) (not inner-join?))]
       (merge row (index (left-key row))))))
@@ -165,8 +170,7 @@
   ([df]
    (count (distinct-fast df)))
   ([keyfn df]
-   {:pre [(validate-head (DataFrame [keyfn]) df)]}
-   (count (distinct-by keyfn df))))
+   (count (distinct-by (->keyfn keyfn) df))))
 
 (defn safe-divide
   [& denominators]
