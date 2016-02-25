@@ -33,16 +33,6 @@
   [m]
   (apply map vector m))
 
-(defn any-of
-  [& keyfns]
-  {:combinator some-fn
-   :keyfns keyfns})
-
-(defn every-of
-  [& keyfns]
-  {:combinator every-pred
-   :keyfns keyfns})
-
 (s/defschema Pred (s/pred ifn?))
 
 (s/defschema KeyFn (s/pred ifn?))
@@ -81,6 +71,16 @@
 (defn col
   [k df]
   (map (->keyfn k) df))
+
+(defn any-of
+  [& keyfns]
+  {:combinator some-fn
+   :keyfns keyfns})
+
+(defn every-of
+  [& keyfns]
+  {:combinator every-pred
+   :keyfns keyfns})
 
 (defn where
   [filters df]
@@ -196,6 +196,10 @@
      (into (priority-map-by >)
        (x/by-key (map (partial * (summary (comp safe-divide sum) val fs))))
        fs))))
+
+(defn mean
+  [xs]
+  (transduce identity x/avg xs))
 
 (defn harmonic-mean
   [xs]
