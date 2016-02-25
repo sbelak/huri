@@ -117,15 +117,15 @@
 (def cols (comp keys first))
 
 (defn summary
-  ([summary-fn]
-   (partial summary summary-fn))
-  ([summary-fn df]
-   (for-map [[as [f k filters]] (map-vals ensure-seq summary-fn)]
+  ([f]
+   (partial summary f))
+  ([f df]
+   (for-map [[as [f k filters]] (map-vals ensure-seq f)]
      as (summary f (or k identity) (cond->> df filters (where filters)))))
-  ([summary-fn keyfn df]
-   (if (vector? summary-fn)
-     (map #(summary % keyfn df) summary-fn)     
-     (apply summary-fn (map #(col % df) (ensure-seq keyfn))))))
+  ([f keyfn df]
+   (if (vector? f)
+     (map #(summary % keyfn df) f)     
+     (apply f (map #(col % df) (ensure-seq keyfn))))))
 
 (defn update-cols
   [update-fns df]
@@ -141,9 +141,11 @@
 
 (defn derive-cols
   [new-cols df]
-  (map (apply comp (for [[k [f & cols]] new-cols]
-                     #(assoc % k (apply f (map (comp % ->keyfn) cols)))))
-       df))
+  (assoc-cols (map-vals (fn [[f & cols]]                          
+                          (fn [m]
+                            (apply f (map #((->keyfn %) m) cols))))
+                        new-cols)
+              df))
 
 (defn ->data-frame
   [cols xs]
