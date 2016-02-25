@@ -147,6 +147,11 @@
                         new-cols)
               df))
 
+(defn transform
+  [cols df]
+  (for [row df]
+    (map-vals #((->keyfn %) row) cols)))
+
 (defn ->data-frame
   [cols xs]
   (if (and (not= (count cols) (count (first xs)))
