@@ -49,7 +49,7 @@
                                            :vjust 1.25}]}]
     [:theme {:plot.margin [:unit [:c 0.35 0.2 0.3 0.35] "cm"]}]))
 
-(defn sanitize-key
+(defn- sanitize-key
   [k]
   (when k
     (-> (if (or (keyword? k) (symbol? k) (string? k))
@@ -100,7 +100,7 @@
   [x]
   [:as.Date (str x)])
 
-(defn ->r-data-frame
+(defn- ->r-data-frame
   [df]
   (cond
     (map? df) (->r-data-frame (seq df))
@@ -120,7 +120,7 @@
           cols 
           (repeat df)))
 
-(defn typespec
+(defn- typespec
   [df]
   (map-vals (comp #(cond
                      (number? %) :number

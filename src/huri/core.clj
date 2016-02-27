@@ -9,7 +9,7 @@
             [clojure.data.priority-map :refer [priority-map-by]]
             [clojure.math.numeric-tower :refer [ceil expt round]]
             [cheshire.core :as json]
-            (schema [core :as s])            
+            [schema.core :as s]            
             [clojure.java.io :as io])
   (:import org.joda.time.DateTime))
 
@@ -102,13 +102,13 @@
 (def rollup-vals (comp vals rollup))
 
 (defn window
-  ([summary-fn df]
-   (window summary-fn identity df))
-  ([summary-fn keyfn df]
-   (window 1 summary-fn keyfn df))
-  ([lag summary-fn keyfn df]
+  ([f df]
+   (window f identity df))
+  ([f keyfn df]
+   (window 1 f keyfn df))
+  ([lag f keyfn df]
    (let [xs (col keyfn df)]
-     (map summary-fn (drop lag xs) xs))))
+     (map f (drop lag xs) xs))))
 
 (defn size
   [df]
@@ -260,10 +260,6 @@
   [dt]
   (ceil (/ (t/month dt) 3)))
 
-(defn week
-  [dt]
-  (.getWeekOfWeekyear dt))
-
 (defn date
   [dt]
   (t/floor dt t/day))
@@ -271,6 +267,14 @@
 (defn year-month
   [dt]
   (t/floor dt t/month))
+
+(defn week-of-year
+  [dt]
+  (.getWeekOfWeekyear dt))
+
+(defn week
+  [dt]
+  (t/minus (date dt) (t/days (dec (t/day-of-week dt)))))
 
 (defn day-of-year
   [dt]
@@ -299,6 +303,12 @@
 (defn after-now?
   [dt]
   (t/after? dt (t/now)))
+
+(defn in?
+  ([dt y]
+   (= (t/year dt) y))
+  ([dt y m]
+   (= (year-month dt) (t/date-time y m))))
 
 (defn spit-json
   [f x]

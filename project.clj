@@ -1,6 +1,6 @@
 (defproject huri "0.1.0-SNAPSHOT"
   :description "Tools for the lazy data scientist"
-  :url "https://github.com/sbelak/qndf"
+  :url "https://github.com/sbelak/huri"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.8.0"]
@@ -11,5 +11,5 @@
                  [org.clojure/data.priority-map "0.0.7"] 
                  [net.cgrand/xforms "0.1.0"]                 
                  [cheshire "5.5.0"]
-                 [com.taoensso/timbre "4.2.1"]
+                 [com.taoensso/timbre "4.3.0"]
                  [gg4clj "0.1.0"]])
