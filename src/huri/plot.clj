@@ -174,13 +174,13 @@
                 ~'*df* (->r-data-frame df#)
                 col-types# (typespec ~'*df*)
                 ~'x-scale (if (= ~'x-scale :auto)
-                            (case (col-types# ~x)
+                            (case (col-types# (sanitize-key ~x))
                               :date :dates
                               :categorical :categorical
                               :linear)
                             ~'x-scale)
                 ~'y-scale (if (= ~'y-scale :auto)
-                            (case (col-types# ~y)
+                            (case (col-types# (sanitize-key ~y))
                               :date :dates
                               :categorical :categorical
                               :linear)
