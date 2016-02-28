@@ -86,7 +86,7 @@
 
 (defmethod ->r-type clojure.lang.Ratio
   [x]
-  (float x))
+  (double x))
 
 (defmethod ->r-type nil
   [x]
@@ -288,8 +288,9 @@
       {:scales "free_y"}])])
 
 (defplot bar-chart x y {:stacked? false 
-                        :flip? false} 
-  [[:ggplot :g [:aes (merge {:x x :y y}
+                        :flip? false
+                        :sort-by nil} 
+  [[:ggplot :g [:aes (merge {:x [:reorder x (or sort-by y)] :y y}
                             (when group-by
                               {:fill group-by}))]] 
    [:geom_bar (merge {:stat "identity"} 
