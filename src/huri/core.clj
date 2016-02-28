@@ -19,7 +19,7 @@
 
 (defn ensure-seq
   [x]
-  (if (coll? x)
+  (if (sequential? x)
     x
     [x]))
 
@@ -156,7 +156,12 @@
   [cols xs]
   (if (and (not= (count cols) (count (first xs)))
            (some coll? (first xs)))    
-    (->data-frame cols (map (partial mapcat ensure-seq) xs))
+    (->data-frame cols (map (partial mapcat (fn [x]
+                                              (cond
+                                                (map? x) (vals x)
+                                                (sequential? x) x
+                                                :else [x])))
+                            xs))
     (map (partial zipmap cols) xs)))
 
 (defn mask
