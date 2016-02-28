@@ -290,7 +290,9 @@
 (defplot bar-chart x y {:stacked? false 
                         :flip? false
                         :sort-by nil} 
-  [[:ggplot :g [:aes (merge {:x [:reorder x (or sort-by y)] :y y}
+  [[:ggplot :g [:aes (merge {:x (if (not= x-scale :dates)
+                                  [:reorder x (or sort-by y)]
+                                  x) :y y}
                             (when group-by
                               {:fill group-by}))]] 
    [:geom_bar (merge {:stat "identity"} 
