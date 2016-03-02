@@ -290,11 +290,11 @@
 (defplot bar-chart x y {:stacked? false 
                         :flip? false
                         :sort-by nil} 
-  [[:ggplot :g [:aes (merge {:x (if (not= x-scale :dates)
-                                  [:reorder x (or sort-by y)]
-                                  x) :y y}
-                            (when group-by
-                              {:fill group-by}))]] 
+  [[:ggplot :g [:aes (-> {:x (if (not= x-scale :dates)
+                               [:reorder x (or sort-by y)]
+                               x)
+                          :y y}
+                         (assoc-when :fill group-by))]] 
    [:geom_bar (merge {:stat "identity"} 
                      (if group-by
                        (when-not stacked? 
@@ -312,8 +312,9 @@
                          {:colour colour}))]
    (when label
      [:geom_label_repel [:aes (-> {:label label}
-                                  (assoc-when :color (some->> group-by
-                                                              (vector :factor))))]
+                                  (assoc-when :color
+                                              (some->> group-by
+                                                       (vector :factor))))]
 
       {:size 3.5
        :show.legend :FALSE}])])

@@ -3,7 +3,8 @@
                       [core :refer [defnk]]
                       [map :refer [map-leaves-and-path keep-leaves
                                    safe-select-keys]])
-            [clj-time.core :as t]
+            (clj-time [core :as t]
+                      [periodic :as t.periodic])
             [plumbing.fnk.pfnk :as pfnk]
             [taoensso.timbre :as log]))
 
@@ -45,12 +46,12 @@
   (run (keys (keep-leaves pred @task-graph))))
 
 (defn refreshing
-  [schedule f]
-  (let [cache (atom nil)
-        schedule (atom schedule)]
+  [at period f]
+  (let [cache (atom ::empty)
+        schedule (atom (t.periodic/periodic-seq at period))]
     (reify clojure.lang.IDeref
       (deref [_]
-        (if (t/after? (t/now) (first @schedule))
+        (if (or (t/after? (t/now) (first @schedule)) (= @atom ::empty))
           (do
             (swap! schedule (partial drop-while (partial t/after? (t/now))))
             (reset! cache (f)))
