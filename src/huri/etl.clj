@@ -51,7 +51,7 @@
         schedule (atom (t.periodic/periodic-seq at period))]
     (reify clojure.lang.IDeref
       (deref [_]
-        (if (or (t/after? (t/now) (first @schedule)) (= @atom ::empty))
+        (if (or (t/after? (t/now) (first @schedule)) (= @cache ::empty))
           (do
             (swap! schedule (partial drop-while (partial t/after? (t/now))))
             (reset! cache (f)))
