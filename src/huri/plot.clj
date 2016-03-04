@@ -1,53 +1,133 @@
+;;;; R interoperability code is based on Jony Hudson's
+;;;; https://github.com/JonyEpsilon/gg4clj
+
 (ns huri.plot
-  (:require [gg4clj.core :as gg4clj]
-            [clojure.string :as s]
-            [plumbing.core :refer [assoc-when]]
-            [plumbing.core :refer [map-vals for-map]])
-  (:import org.joda.time.DateTime))
+  (:require [clojure.string :as s]            
+            [plumbing.core :refer [map-vals for-map assoc-when]]
+            [clojure.java.shell :as shell]            
+            [clojure.walk :as walk]
+            [gorilla-renderable.core :as render]
+            [clojure.xml :as xml])
+  (:import org.joda.time.DateTime
+           java.io.File
+           java.util.UUID))
 
-(def preamble [[:library :scales]
-               [:library :grid]
-               [:library :RColorBrewer]
-               [:library :ggrepel]
-               [:<- :palette [:brewer.pal "Greys" {:n 9}]]
-               {:color.background (keyword "palette[2]")}
-               {:color.grid.major (keyword "palette[3]")}
-               {:color.axis.text (keyword "palette[6]")}
-               {:color.axis.title (keyword "palette[7]")}
-               {:color.title (keyword "palette[9]")}])
+(declare ->r)
 
-(def theme
-  (gg4clj/r+
-    [:theme_bw {:base_size 9}]
-    [:theme {:panel.background [:element_rect {:fill :color.background 
-                                               :color :color.background}]}]
-    [:theme {:plot.background [:element_rect {:fill :color.background 
-                                              :color :color.background}]}]
-    [:theme {:panel.border [:element_rect {:color :color.background}]}]
-    [:theme {:panel.grid.major [:element_line {:color :color.grid.major 
-                                               :size 0.25}]}]
-    [:theme {:panel.grid.minor [:element_blank]}]
-    [:theme {:axis.ticks [:element_blank]}]
-    [:theme {:legend.background [:element_rect {:fill :color.background}]}]
-    [:theme {:legend.key [:element_rect {:fill :color.background 
-                                         :color :color.background}]}]
-    [:theme {:legend.text [:element_text {:size 7
-                                          :color :color.axis.title}]}]
-    [:theme {:legend.title [:element_blank]}]
-    [:theme {:plot.title [:element_text {:size 10
-                                         :color :color.title 
-                                         :vjust 1.25}]}]
-    [:theme {:axis.text.x [:element_text {:size 7
-                                          :color :color.axis.text}]}]
-    [:theme {:axis.text.y [:element_text {:size 7
-                                          :color :color.axis.text}]}]
-    [:theme {:axis.title.x [:element_text {:size 8 
-                                           :color :color.axis.title 
-                                           :vjust 0}]}]
-    [:theme {:axis.title.y [:element_text {:size 8 
-                                           :color :color.axis.title 
-                                           :vjust 1.25}]}]
-    [:theme {:plot.margin [:unit [:c 0.35 0.2 0.3 0.35] "cm"]}]))
+(defn- quote-string  
+  [s]
+  (str "\"" s "\""))
+
+(defn- function-name  
+  [f]
+  (case f
+    :+ (quote-string "+")
+    :<- (quote-string "<-")
+    (name f)))
+
+(defn- fn-from-vec
+  [[head & tail]]
+  (str (function-name head) "(" (s/join ", " (map ->r tail)) ")"))
+
+(defn- named-args-from-map
+  [arg-map]
+  (->> arg-map
+       keys
+       (map #(str (name %) " = " (->r (% arg-map))))
+       (s/join ", ")))
+
+(defn r+
+  [& args]
+  (reduce (partial vector :+) args))
+
+(defn ->r
+  [code]
+  (cond    
+    (vector? code) (if (vector? (first code))
+                     (s/join ";\n" (map ->r code))
+                     (fn-from-vec code))
+    (map? code) (named-args-from-map code)
+    (keyword? code) (name code)
+    (string? code) (quote-string code)
+    (or (true? code) (false? code)) (s/upper-case (str code))
+    :else (pr-str code)))
+
+(defn- rscript
+  [script-path]
+  (let [return-val (shell/sh "Rscript" "--vanilla" script-path)]
+    (when (not= 0 (:exit return-val))
+      (println (:err return-val)))))
+
+(defn- ggsave
+  [command filepath width height]
+  [command [:ggsave {:filename filepath :width width :height height}]])
+
+(defn- fresh-ids
+  [svg]
+  (->> svg
+       (tree-seq coll? identity)
+       (filter map?)
+       (keep :id)
+       (map (fn [new old]
+              {old new
+               (str "#" old) (str "#" new)
+               (format "url(#%s)" old) (format "url(#%s)" new)})
+            (repeatedly #(str (UUID/randomUUID))))
+       (apply merge)))
+
+(defn- mangle-ids
+  "ggplot produces SVGs with elements that have id attributes. These ids are 
+unique within each plot, but are generated in such a way that they clash when 
+there's more than one plot in a document. 
+This function is a workaround for that. It takes an SVG string and replaces 
+the ids with globally unique ids, returning a string."
+  [svg]
+  (let [svg (xml/parse (java.io.ByteArrayInputStream. (.getBytes svg)))
+        smap (fresh-ids svg)
+        mangle (fn [x]
+                 (if (map? x)
+                   (into {}
+                     (for [[k v] x]
+                       [k (if (or (= :id k)
+                                  (and (string? v)
+                                       (or (s/starts-with? v "#")
+                                           (s/starts-with? v "url(#"))))
+                            (smap v)
+                            v)]))
+                   x))]
+    (with-out-str
+      (xml/emit (walk/prewalk mangle svg)))))
+
+(defn render
+  ([plot-command]
+   (render plot-command {}))
+  ([plot-command options]
+   (let [width (or (:width options) 6.5)
+         height (or (:height options) (/ width 1.618))
+         r-file (File/createTempFile "huri-plot" ".r")
+         r-path (.getAbsolutePath r-file)         
+         out-file (File/createTempFile "huri-plot" ".svg")
+         out-path (.getAbsolutePath out-file)
+         _ (spit r-path (->r (ggsave plot-command out-path width height)))
+         _ (rscript r-path)
+         rendered-plot (slurp out-path)
+         _ (.delete r-file)
+         _ (.delete out-file)]
+     (mangle-ids rendered-plot))))
+
+(defrecord GGView [plot-command options])
+
+(extend-type GGView
+  render/Renderable
+  (render [self]
+    {:type :html
+     :content (render (:plot-command self) (:options self))
+     :value (pr-str self)}))
+
+(defn view
+  ([plot-command] (view plot-command {}))
+  ([plot-command options]
+   (GGView. plot-command options)))
 
 (defn- sanitize-key
   [k]
@@ -55,7 +135,7 @@
     (-> (if (or (keyword? k) (symbol? k) (string? k))
           (name k)
           (str k))
-        (s/replace #"(?:^\d)|\W" #(str "__" (int (first %))))
+        (s/replace #"(?:^\d)|\W" (comp (partial str "__") int first))
         keyword)))
 
 (defmulti ->r-type type)
@@ -105,7 +185,7 @@
   (cond
     (map? df) (->r-data-frame (seq df))
     (map? (first df)) (for-map [k (keys (first df))]
-                               (sanitize-key k) (map (comp ->r-type k) df))
+                        (sanitize-key k) (map (comp ->r-type k) df))
     (sequential? (first df)) (->> df
                                   (map (partial zipmap [:x__auto :y__auto]))
                                   ->r-data-frame)
@@ -116,7 +196,7 @@
   (mapcat (fn [col df]
             (for [row df]
               (assoc row value-col (row col)
-                group-col col)))
+                     group-col col)))
           cols 
           (repeat df)))
 
@@ -128,6 +208,51 @@
                      (and (vector? %) (= :as.Date (first %))) :date)
                   first)
             df))
+
+(def preamble [[:library :ggplot2]
+               [:library :scales]
+               [:library :grid]
+               [:library :RColorBrewer]
+               [:library :ggrepel]
+               [:<- :palette [:brewer.pal "Greys" {:n 9}]]
+               {:color.background (keyword "palette[2]")}
+               {:color.grid.major (keyword "palette[3]")}
+               {:color.axis.text (keyword "palette[6]")}
+               {:color.axis.title (keyword "palette[7]")}
+               {:color.title (keyword "palette[9]")}])
+
+(def theme
+  (r+
+   [:theme_bw {:base_size 9}]
+   [:theme {:panel.background [:element_rect {:fill :color.background 
+                                              :color :color.background}]}]
+   [:theme {:plot.background [:element_rect {:fill :color.background 
+                                             :color :color.background}]}]
+   [:theme {:panel.border [:element_rect {:color :color.background}]}]
+   [:theme {:panel.grid.major [:element_line {:color :color.grid.major 
+                                              :size 0.25}]}]
+   [:theme {:panel.grid.minor [:element_blank]}]
+   [:theme {:axis.ticks [:element_blank]}]
+   [:theme {:legend.background [:element_rect {:fill :color.background}]}]
+   [:theme {:legend.key [:element_rect {:fill :color.background 
+                                        :color :color.background}]}]
+   [:theme {:legend.text [:element_text {:size 7
+                                         :color :color.axis.title}]}]
+   [:theme {:legend.title [:element_blank]}]
+   [:theme {:plot.title [:element_text {:size 10
+                                        :color :color.title 
+                                        :vjust 1.25}]}]
+   [:theme {:axis.text.x [:element_text {:size 7
+                                         :color :color.axis.text}]}]
+   [:theme {:axis.text.y [:element_text {:size 7
+                                         :color :color.axis.text}]}]
+   [:theme {:axis.title.x [:element_text {:size 8 
+                                          :color :color.axis.title 
+                                          :vjust 0}]}]
+   [:theme {:axis.title.y [:element_text {:size 8 
+                                          :color :color.axis.title 
+                                          :vjust 1.25}]}]
+   [:theme {:plot.margin [:unit [:c 0.35 0.2 0.3 0.35] "cm"]}]))
 
 (defmacro defplot
   [name & args]
@@ -167,8 +292,8 @@
        ([~@positional-params options# df#]
         (if (sequential? ~(last positional-params))
           (~name ~@(butlast positional-params) :y__auto 
-                 (assoc options# :group-by :series__auto) 
-                 (melt ~(last positional-params) :y__auto :series__auto df#))
+           (assoc options# :group-by :series__auto) 
+           (melt ~(last positional-params) :y__auto :series__auto df#))
           (let [{:keys ~(mapv #(symbol (subs (str %) 1)) (keys defaults))} 
                 (merge ~defaults options#)
                 ~'*df* (->r-data-frame df#)
@@ -185,80 +310,86 @@
                               :categorical :categorical
                               :linear)
                             ~'y-scale)]
-            (gg4clj/view 
-              [[:<- :g (gg4clj/data-frame ~'*df*)]
-               preamble
-               (->> [(case ~'x-scale
-                       :log [:scale_x_log10 {:labels :comma}]
-                       :sqrt [:scale_x_sqrt {:labels :comma}]
-                       :linear [:scale_x_continuous {:labels :comma}]
-                       :percent [:scale_x_continuous {:labels :percent}]
-                       :months [:scale_x_date {:labels [:date_format "%b-%y"]}]
-                       :dates [:scale_x_date {:labels [:date_format "%d-%b"]}]
-                       :categorical nil) 
-                     (case ~'y-scale
-                       :log [:scale_y_log10 {:labels :comma}]
-                       :sqrt [:scale_y_sqrt {:labels :comma}]
-                       :linear [:scale_y_continuous {:labels :comma}]
-                       :percent [:scale_y_continuous {:labels :percent}]
-                       :months [:scale_y_date {:labels [:date_format "%b-%y"]}]
-                       :dates [:scale_y_date {:labels [:date_format "%d-%b"]}]
-                       :categorical nil)
-                     theme 
-                     (when-not (or (true? ~'legend?)
-                                   (and ~'legend?
-                                         ~'group-by
-                                         (not ~'share-x?)
-                                         (not ~'facet)))
-                       [:theme {:legend.position "none"}])
-                     [:labs {:x (or ~'x-label
-                                    (if (#{:x__auto :y__auto} ~x)
-                                      ""
-                                      (name ~x))) 
-                             :y (or ~'y-label
-                                    ~(if y
-                                       `(if (not= ~y :y__auto)
-                                          (name ~y)
-                                          "")
-                                       ""))
-                             :title ~'title}]]
-                    (concat (let [~@(mapcat #(vector % `(sanitize-key ~%))
-                                            (conj positional-params 'group-by))] 
-                              ~body)
-                            [(when ~'facet
-                               [:facet_grid (keyword
-                                             (if (sequential? ~'facet)
-                                               (->> ~'facet
-                                                    (map name)
-                                                    (apply format "%s ~ %s"))
-                                               (str "~" (name ~'facet))))])
-                             (when ~'trendline?
-                               [:geom_smooth {:alpha 0.25
-                                              :colour "black"
-                                              :fill "black"}])])
-                    (remove nil?)
-                    (apply gg4clj/r+))]
-              {:width ~'width :height ~'height})))))))
+            (view 
+             [[:<- :g [:data.frame (map-vals (partial into [:c]) ~'*df*)]]
+              preamble
+              (->> [(case ~'x-scale
+                      :log [:scale_x_log10 {:labels :comma}]
+                      :sqrt [:scale_x_sqrt {:labels :comma}]
+                      :linear [:scale_x_continuous {:labels :comma}]
+                      :percent [:scale_x_continuous {:labels :percent}]
+                      :months [:scale_x_date {:labels [:date_format "%b-%y"]}]
+                      :dates [:scale_x_date {:labels [:date_format "%d-%b"]}]
+                      :categorical nil) 
+                    (case ~'y-scale
+                      :log [:scale_y_log10 {:labels :comma}]
+                      :sqrt [:scale_y_sqrt {:labels :comma}]
+                      :linear [:scale_y_continuous {:labels :comma}]
+                      :percent [:scale_y_continuous {:labels :percent}]
+                      :months [:scale_y_date {:labels [:date_format "%b-%y"]}]
+                      :dates [:scale_y_date {:labels [:date_format "%d-%b"]}]
+                      :categorical nil)
+                    theme 
+                    (when-not (or (true? ~'legend?)
+                                  (and ~'legend?
+                                       ~'group-by
+                                       (not ~'share-x?)
+                                       (not ~'facet)))
+                      [:theme {:legend.position "none"}])
+                    [:labs {:x (or ~'x-label
+                                   (if (#{:x__auto :y__auto} ~x)
+                                     ""
+                                     (name ~x))) 
+                            :y (or ~'y-label
+                                   ~(if y
+                                      `(if (not= ~y :y__auto)
+                                         (name ~y)
+                                         "")
+                                      ""))
+                            :title ~'title}]]
+                   (concat (let [~@(mapcat #(vector % `(sanitize-key ~%))
+                                           (concat positional-params
+                                                   ['group-by 'facet]))] 
+                             ~body)
+                           [(when ~'facet
+                              [:facet_grid (keyword
+                                            (if (sequential? ~'facet)
+                                              (->> ~'facet
+                                                   (map name)
+                                                   (apply format "%s ~ %s"))
+                                              (str "~" (name ~'facet))))])
+                            (when ~'trendline?
+                              [:geom_smooth {:alpha 0.25
+                                             :colour "black"
+                                             :fill "black"}])])
+                   (remove nil?)
+                   (apply r+))]
+             {:width ~'width :height ~'height})))))))
 
 (defplot histogram x {:bins 20 
                       :bin-width nil 
-                      :density? false}
+                      :density? false
+                      :frequency? false}
   (let [bin-width (or bin-width
                       (/ (- (apply max (*df* x)) (apply min (*df* x)))
                          bins))
-        aesthetics (merge {:binwidth bin-width :alpha alpha}
-                          (if group-by
-                            {:position "identity"}
-                            {:fill colour}))]
-    [[:ggplot :g [:aes (-> {:x x}
-                           (assoc-when :fill group-by))]]
-     (if density?
-       [:geom_histogram [:aes {:y (keyword "..density..")}] 
-        aesthetics]
-       [:geom_histogram aesthetics])
-     [:geom_hline {:yintercept 0 :size 0.4 :colour "black"}]
-     (when density?
-       [:geom_density])]))
+        aesthetics (if frequency?
+                     {:colour (or group-by colour)}
+                     {:fill (or group-by colour)})]
+    [[:ggplot :g (if density? 
+                   [:aes x (keyword "..density..") (if group-by
+                                                     aesthetics
+                                                     {})]
+                   [:aes x (if group-by
+                             aesthetics
+                             {})])]
+     [(if frequency?
+        :geom_freqpoly
+        :geom_histogram) (merge {:binwidth bin-width 
+                                 :alpha alpha}
+                                (when-not group-by
+                                  aesthetics))]
+     [:geom_hline {:yintercept 0 :size 0.4 :colour "black"}]]))
 
 (defplot line-chart x y {:show-points? :auto
                          :fill? false
@@ -311,13 +442,11 @@
                        (when-not group-by
                          {:colour colour}))]
    (when label
-     [:geom_label_repel [:aes (-> {:label label}
-                                  (assoc-when :color
-                                              (some->> group-by
-                                                       (vector :factor))))]
-
+     [:geom_label_repel
+      [:aes (-> {:label label}
+                (assoc-when :color (some->> group-by (vector :factor))))]
       {:size 3.5
-       :show.legend :FALSE}])])
+       :show.legend false}])])
 
 (defplot box-plot x y {:legend? false}
   [[:ggplot :g [:aes {:x x :y y :fill x}]]
@@ -330,7 +459,7 @@
   [[:ggplot :g [:aes {:x x :y y :fill x}]]
    [:geom_violin {:alpha 0.5
                   :colour (keyword "palette[4]")
-                  :trim (if trim? :TRUE :FALSE)
+                  :trim (boolean trim?)
                   :scale (name scale)}]
    (when summary?
      [:stat_summary {:fun.data "mean_se" 
@@ -345,4 +474,3 @@
    [:scale_fill_distiller (or z-label (name z))
     (-> {:palette "RdYlBu"}
         (assoc-when :limit (some->> extent (apply vector :c))))]])
-
