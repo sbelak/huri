@@ -199,10 +199,9 @@
   ([keyfn df]
    (distribution keyfn (constantly 1) df))
   ([keyfn weightfn df]
-   (let [fs (rollup keyfn sum weightfn df)]
+   (let [norm (safe-divide (summary sum weightfn df))]     
      (into (priority-map-by >)
-       (x/by-key (map (partial * (summary (comp safe-divide sum) val fs))))
-       fs))))
+       (rollup keyfn (comp (partial * norm) (summary sum)) df)))))
 
 (defn mean
   [xs]
