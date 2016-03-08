@@ -203,9 +203,7 @@
      (into (priority-map-by >)
        (rollup keyfn (comp (partial * norm) (summary sum)) df)))))
 
-(defn mean
-  [xs]
-  (transduce identity x/avg xs))
+(def mean (partial transduce identity x/avg))
 
 (defn harmonic-mean
   [xs]
@@ -246,8 +244,10 @@
     (/ (round (* x scale)) scale)))
 
 (defn extent
-  [xs]
-  [(apply min xs) (apply max xs)])
+  ([xs]
+   [(apply min xs) (apply max xs)])
+  ([keyfn df]
+   (extent (col keyfn df))))
 
 (defn clamp
   ([[lower upper] x]
