@@ -201,7 +201,7 @@
   ([keyfn weightfn df]
    (let [norm (safe-divide (summary sum weightfn df))]     
      (into (priority-map-by >)
-       (rollup keyfn (comp (partial * norm) (summary sum)) df)))))
+       (rollup keyfn (comp (partial * norm) sum) weightfn df)))))
 
 (def mean (partial transduce identity x/avg))
 
