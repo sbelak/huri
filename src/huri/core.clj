@@ -180,9 +180,10 @@
    (count (distinct-by (->keyfn keyfn) df))))
 
 (defn safe-divide
-  [& denominators]
-  (when (not-any? zero? denominators)
-    (double (apply / denominators))))
+  [numerator & denominators]
+  (when (or (and (seq denominators) (not-any? zero? denominators))
+            (not (zero? numerator)))
+    (double (apply / numerator denominators))))
 
 (defn share
   ([filters]
