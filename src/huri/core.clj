@@ -204,7 +204,15 @@
      (into (priority-map-by >)
        (rollup keyfn (comp (partial * norm) sum) weightfn df)))))
 
-(def mean (partial transduce identity x/avg))
+(defn mean
+  ([xs]
+   (transduce identity x/avg xs))
+  ([keyfn df]
+   (mean (col keyfn df)))
+  ([keyfn weightfn df]
+   (let [keyfn (->keyfn keyfn)]
+     (safe-divide (summary sum #(* (keyfn %) (weightfn %)) df)
+                  (summary sum weightfn df)))))
 
 (defn harmonic-mean
   [xs]
