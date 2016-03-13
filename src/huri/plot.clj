@@ -2,8 +2,9 @@
 ;;;; https://github.com/JonyEpsilon/gg4clj
 
 (ns huri.plot
-  (:require [clojure.string :as s]            
-            [plumbing.core :refer [map-vals for-map assoc-when]]
+  (:require [huri.core :refer [rollup assoc-cols]]
+            [clojure.string :as s]            
+            [plumbing.core :refer [map-vals for-map assoc-when sum]]
             [clojure.java.shell :as shell]            
             [clojure.walk :as walk]
             [gorilla-renderable.core :as render]
@@ -77,10 +78,10 @@
 
 (defn- mangle-ids
   "ggplot produces SVGs with elements that have id attributes. These ids are 
-unique within each plot, but are generated in such a way that they clash when 
-there's more than one plot in a document. 
-This function is a workaround for that. It takes an SVG string and replaces 
-the ids with globally unique ids, returning a string."
+  unique within each plot, but are generated in such a way that they clash when 
+  there's more than one plot in a document. 
+  This function is a workaround for that. It takes an SVG string and replaces 
+  the ids with globally unique ids, returning a string."
   [svg]
   (let [svg (xml/parse (java.io.ByteArrayInputStream. (.getBytes svg)))
         smap (fresh-ids svg)
@@ -269,7 +270,8 @@ the ids with globally unique ids, returning a string."
                          :alpha 0.75
                          :legend? :auto
                          :share-x? false
-                         :trendline? false                         
+                         :trendline? false
+                         :stacked? false
                          :facet nil
                          :width 9
                          :height 5}
@@ -296,7 +298,14 @@ the ids with globally unique ids, returning a string."
            (melt ~(last positional-params) :y__auto :series__auto df#))
           (let [{:keys ~(mapv #(symbol (subs (str %) 1)) (keys defaults))} 
                 (merge ~defaults options#)
-                ~'*df* (->r-data-frame df#)
+                total# (when (and ~'trendline? ~'stacked?)
+                         (comp (rollup ~(first positional-params) sum
+                                       ~(second positional-params)
+                                       df#)
+                               ~(first positional-params)))
+                ~'*df* (->r-data-frame (if total#
+                                         (assoc-cols {:group__total total#} df#)
+                                         df#))
                 col-types# (typespec ~'*df*)
                 ~'x-scale (if (= ~'x-scale :auto)
                             (case (col-types# (sanitize-key ~x))
@@ -359,9 +368,14 @@ the ids with globally unique ids, returning a string."
                                                    (apply format "%s ~ %s"))
                                               (str "~" (name ~'facet))))])
                             (when ~'trendline?
-                              [:geom_smooth {:alpha 0.25
-                                             :colour "black"
-                                             :fill "black"}])])
+                              (if total#
+                                [:geom_smooth [:aes {:y :group__total}]
+                                 {:alpha 0.25
+                                  :colour "black"
+                                  :fill "black"}]
+                                [:geom_smooth {:alpha 0.25
+                                               :colour "black"
+                                               :fill "black"}]))])
                    (remove nil?)
                    (apply r+))]
              {:width ~'width :height ~'height})))))))
