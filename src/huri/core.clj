@@ -232,6 +232,12 @@
   [b a]
   (safe-divide (- b a) a)) 
 
+(defn rate
+  ([keyfn-a keyfn-b]
+   (partial rate keyfn-a keyfn-b))
+  ([keyfn-a keyfn-b df]
+   (safe-divide (summary sum keyfn-a df) (summary sum keyfn-b df))))
+
 (defn sample
   [n xs]
   (into (empty xs)
