@@ -371,7 +371,8 @@
                                {:axis.text.x [:element_text
                                               {:angle (if (number? ~'x-rotate)
                                                         ~'x-rotate
-                                                        45)}]}])
+                                                        45)
+                                               :hjust 1}]}])
                             [:labs {:x (or ~'x-label
                                            (if (#{:x__auto :y__auto} ~x)
                                              ""
