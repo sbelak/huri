@@ -270,9 +270,9 @@
                          :alpha 0.75
                          :legend? :auto
                          :share-x? false
-                         :trendline? false
-                         :stacked? false
+                         :trendline? false                         
                          :facet nil
+                         :x-rotate nil
                          :width 9
                          :height 5}
                         (last params))
@@ -298,7 +298,7 @@
            (melt ~(last positional-params) :y__auto :series__auto df#))
           (let [{:keys ~(mapv #(symbol (subs (str %) 1)) (keys defaults))} 
                 (merge ~defaults options#)
-                total# (when (and ~'trendline? ~'stacked?)
+                total# (when (and ~'trendline? (:stacked? options#))
                          (comp (rollup ~(first positional-params) sum
                                        ~(second positional-params)
                                        df#)
@@ -322,41 +322,7 @@
             (view 
              [[:<- :g [:data.frame (map-vals (partial into [:c]) ~'*df*)]]
               preamble
-              (->> [(case ~'x-scale
-                      :log [:scale_x_log10 {:labels :comma}]
-                      :sqrt [:scale_x_sqrt {:labels :comma}]
-                      :linear [:scale_x_continuous {:labels :comma}]
-                      :percent [:scale_x_continuous {:labels :percent}]
-                      :months [:scale_x_date {:labels [:date_format "%b-%y"]}]
-                      :dates [:scale_x_date {:labels [:date_format "%d-%b"]}]
-                      :categorical nil) 
-                    (case ~'y-scale
-                      :log [:scale_y_log10 {:labels :comma}]
-                      :sqrt [:scale_y_sqrt {:labels :comma}]
-                      :linear [:scale_y_continuous {:labels :comma}]
-                      :percent [:scale_y_continuous {:labels :percent}]
-                      :months [:scale_y_date {:labels [:date_format "%b-%y"]}]
-                      :dates [:scale_y_date {:labels [:date_format "%d-%b"]}]
-                      :categorical nil)
-                    theme 
-                    (when-not (or (true? ~'legend?)
-                                  (and ~'legend?
-                                       ~'group-by
-                                       (not ~'share-x?)
-                                       (not ~'facet)))
-                      [:theme {:legend.position "none"}])
-                    [:labs {:x (or ~'x-label
-                                   (if (#{:x__auto :y__auto} ~x)
-                                     ""
-                                     (name ~x))) 
-                            :y (or ~'y-label
-                                   ~(if y
-                                      `(if (not= ~y :y__auto)
-                                         (name ~y)
-                                         "")
-                                      ""))
-                            :title ~'title}]]
-                   (concat (let [~@(mapcat #(vector % `(sanitize-key ~%))
+              (->> (concat (let [~@(mapcat #(vector % `(sanitize-key ~%))
                                            (concat positional-params
                                                    ['group-by 'facet]))] 
                              ~body)
@@ -375,7 +341,48 @@
                                   :fill "black"}]
                                 [:geom_smooth {:alpha 0.25
                                                :colour "black"
-                                               :fill "black"}]))])
+                                               :fill "black"}]))
+                            (case ~'x-scale
+                              :log [:scale_x_log10 {:labels :comma}]
+                              :sqrt [:scale_x_sqrt {:labels :comma}]
+                              :linear [:scale_x_continuous {:labels :comma}]
+                              :percent [:scale_x_continuous {:labels :percent}]
+                              :months [:scale_x_date {:labels [:date_format "%b-%y"]}]
+                              :dates [:scale_x_date {:labels [:date_format "%d-%b"]}]
+                              :categorical nil) 
+                            (case ~'y-scale
+                              :log [:scale_y_log10 {:labels :comma}]
+                              :sqrt [:scale_y_sqrt {:labels :comma}]
+                              :linear [:scale_y_continuous {:labels :comma}]
+                              :percent [:scale_y_continuous {:labels :percent}]
+                              :months [:scale_y_date {:labels [:date_format "%b-%y"]}]
+                              :dates [:scale_y_date {:labels [:date_format "%d-%b"]}]
+                              :categorical nil)
+                            theme 
+                            (when-not (or (true? ~'legend?)
+                                          (and ~'legend?
+                                               ~'group-by
+                                               (not ~'share-x?)
+                                               (not ~'facet))))
+                            (when (or (number? ~'x-rotate) 
+                                      (and (= ~'x-rotate :auto)
+                                           (nil? (:flip? options#))))
+                              [:theme
+                               {:axis.text.x [:element_text
+                                              {:angle (if (number? ~'x-rotate)
+                                                        ~'x-rotate
+                                                        45)}]}])
+                            [:labs {:x (or ~'x-label
+                                           (if (#{:x__auto :y__auto} ~x)
+                                             ""
+                                             (name ~x))) 
+                                    :y (or ~'y-label
+                                           ~(if y
+                                              `(if (not= ~y :y__auto)
+                                                 (name ~y)
+                                                 "")
+                                              ""))
+                                    :title ~'title}]])
                    (remove nil?)
                    (apply r+))]
              {:width ~'width :height ~'height})))))))
@@ -434,7 +441,8 @@
 
 (defplot bar-chart x y {:stacked? false 
                         :flip? false
-                        :sort-by nil} 
+                        :sort-by nil
+                        :x-rotate :auto} 
   [[:ggplot :g [:aes (-> {:x (if (not= x-scale :dates)
                                [:reorder x (or sort-by y)]
                                x)
