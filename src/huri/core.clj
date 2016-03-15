@@ -1,6 +1,6 @@
 (ns huri.core
   (:require [huri.schema :refer [defcoercer]]
-            (plumbing [core :refer [distinct-by distinct-fast sum map-vals
+            (plumbing [core :refer [distinct-by distinct-fast map-vals
                                     map-from-vals map-from-keys fn->> for-map
                                     safe-get]]
                       [map :refer [safe-select-keys]])
@@ -69,8 +69,10 @@
     {identity x}))
 
 (defn col
-  [k df]
-  (map (->keyfn k) df))
+  ([k]
+   (map (->keyfn k)))
+  ([k df]
+   (map (->keyfn k) df)))
 
 (defn any-of
   [& keyfns]
@@ -185,14 +187,27 @@
             (not (zero? numerator)))
     (double (apply / numerator denominators))))
 
+(defn sum
+  ([xs]
+   (sum identity xs))
+  ([keyfn df]
+   (transduce (col keyfn) + xs)))
+
+(defn rate
+  ([keyfn-a keyfn-b]
+   (partial rate keyfn-a keyfn-b))
+  ([keyfn-a keyfn-b df]
+   (safe-divide (sum keyfn-a df)
+                (sum keyfn-b df))))
+
 (defn share
   ([filters]
    (partial share filters))
   ([filters df]
    (safe-divide (count-where filters df) (count df)))
-  ([keyfn filters df]
-   (safe-divide (summary sum keyfn (where filters df))
-                (summary sum keyfn df))))
+  ([keyfn filters df]   
+   (safe-divide (sum keyfn (where filters df))
+                (sum keyfn df))))
 
 (defn distribution
   ([df]
@@ -200,23 +215,22 @@
   ([keyfn df]
    (distribution keyfn (constantly 1) df))
   ([keyfn weightfn df]
-   (let [norm (safe-divide (summary sum weightfn df))]     
+   (let [norm (safe-divide (sum weightfn df))]     
      (into (priority-map-by >)
        (rollup keyfn (comp (partial * norm) sum) weightfn df)))))
 
 (defn mean
   ([xs]
-   (transduce identity x/avg xs))
+   (mean identity xs))
   ([keyfn df]
-   (mean (col keyfn df)))
+   (transduce (col keyfn) x/avg xs))
   ([keyfn weightfn df]
    (let [keyfn (->keyfn keyfn)]
-     (safe-divide (summary sum #(* (keyfn %) (weightfn %)) df)
-                  (summary sum weightfn df)))))
+     (rate #(* (keyfn %) (weightfn %)) weightfn df))))
 
 (defn harmonic-mean
   [xs]
-  (double (/ (count xs) (summary sum / xs))))
+  (double (/ (count xs) (sum / xs))))
 
 (def cdf (fn->> distribution
                 (sort-by key)
@@ -231,12 +245,6 @@
 (defn growth
   [b a]
   (safe-divide (- b a) a)) 
-
-(defn rate
-  ([keyfn-a keyfn-b]
-   (partial rate keyfn-a keyfn-b))
-  ([keyfn-a keyfn-b df]
-   (safe-divide (summary sum keyfn-a df) (summary sum keyfn-b df))))
 
 (defn sample
   [n xs]
