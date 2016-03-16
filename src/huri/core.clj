@@ -1,8 +1,7 @@
 (ns huri.core
   (:require [huri.schema :refer [defcoercer]]
-            (plumbing [core :refer [distinct-by distinct-fast map-vals
-                                    map-from-vals map-from-keys fn->> for-map
-                                    safe-get]]
+            (plumbing [core :refer [distinct-by distinct-fast map-vals safe-get
+                                    map-from-vals map-from-keys fn->> for-map]]
                       [map :refer [safe-select-keys]])
             [clj-time.core :as t]
             [net.cgrand.xforms :as x]
@@ -205,9 +204,9 @@
    (partial share filters))
   ([filters df]
    (safe-divide (count-where filters df) (count df)))
-  ([keyfn filters df]   
-   (safe-divide (sum keyfn (where filters df))
-                (sum keyfn df))))
+  ([filters weightfn df]   
+   (safe-divide (sum weightfn (where filters df))
+                (sum weightfn df))))
 
 (defn distribution
   ([df]

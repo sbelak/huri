@@ -56,7 +56,7 @@
 (defn- rscript
   [script-path]
   (let [return-val (shell/sh "Rscript" "--vanilla" script-path)]
-    (when (not= 0 (:exit return-val))
+    (when-not (zero? (:exit return-val))
       (println (:err return-val)))))
 
 (defn- ggsave
@@ -444,9 +444,9 @@
                         :flip? false
                         :sort-by nil
                         :x-rotate :auto} 
-  [[:ggplot :g [:aes (-> {:x (if (not= x-scale :dates)
-                               [:reorder x (or sort-by y)]
-                               x)
+  [[:ggplot :g [:aes (-> {:x (if (= x-scale :dates)
+                               x
+                               [:reorder x (or sort-by y)])
                           :y y}
                          (assoc-when :fill group-by))]] 
    [:geom_bar (merge {:stat "identity"} 
