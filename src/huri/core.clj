@@ -187,10 +187,10 @@
     (double (apply / numerator denominators))))
 
 (defn sum
-  ([xs]
-   (sum identity xs))
+  ([df]
+   (sum identity df))
   ([keyfn df]
-   (transduce (col keyfn) + xs)))
+   (transduce (col keyfn) + df)))
 
 (defn rate
   ([keyfn-a keyfn-b]
