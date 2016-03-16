@@ -219,10 +219,10 @@
        (rollup keyfn (comp (partial * norm) sum) weightfn df)))))
 
 (defn mean
-  ([xs]
-   (mean identity xs))
+  ([df]
+   (mean identity df))
   ([keyfn df]
-   (transduce (col keyfn) x/avg xs))
+   (transduce (col keyfn) x/avg df))
   ([keyfn weightfn df]
    (let [keyfn (->keyfn keyfn)]
      (rate #(* (keyfn %) (weightfn %)) weightfn df))))
