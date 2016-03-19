@@ -10,7 +10,22 @@ __Huri__ is a Clojure library for the lazy data scientists. It consists of
 
 ## Design philosophy
 
+I gave about motivation and design phiosophy behind Huri at ClojureD 2016: [video](https://www.youtube.com/watch?v=PSTSO8K80U4), [slides](http://www.slideshare.net/simonbelak/doing-data-science-with-clojure).
+
 ## Usage
+
+Add this dependency to your project:
+
+```clj
+[huri "0.3.0-SNAPSHOT"]
+```
+
+## Examples
+
+## For the future
+
+* Interactive charts
+* Optimizing `->>` that rewrites code on the fly to do as much as possible in a single pass and use transducer fusion more extnesively (intermediate results don't need to be end user consumable).
 
 
 ## License

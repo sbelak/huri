@@ -1,7 +1,7 @@
 (ns huri.core
   (:require [huri.schema :refer [defcoercer]]
             (plumbing [core :refer [distinct-by distinct-fast map-vals safe-get
-                                    map-from-vals map-from-keys fn->> for-map]]
+                                    map-from-vals map-from-keys for-map]]
                       [map :refer [safe-select-keys]])
             [clj-time.core :as t]
             [net.cgrand.xforms :as x]
@@ -13,8 +13,10 @@
   (:import org.joda.time.DateTime))
 
 (defn mapply
-  [f coll]
-  (map (partial apply f) coll))
+  ([f]
+   (map (partial apply f)))
+  ([f coll]
+   (map (partial apply f) coll)))
 
 (defn ensure-seq
   [x]
@@ -166,11 +168,11 @@
 
 (defn join
   [left right [left-key right-key] & {:keys [inner-join?]}]
-  (let [left-key (->keyfn left-key)
-        index (map-from-vals (->keyfn right-key) right)]
+  (let [left->right (comp (map-from-vals (->keyfn right-key) right)
+                          (->keyfn left-key))]
     (for [row left
-          :when (index (left-key row) (not inner-join?))]
-      (merge row (index (left-key row))))))
+          :when (or (left->right row) (not inner-join?))]
+      (merge row (left->right row)))))
 
 (def count-where (comp count where))
 
@@ -214,7 +216,7 @@
   ([keyfn df]
    (distribution keyfn (constantly 1) df))
   ([keyfn weightfn df]
-   (let [norm (safe-divide (sum weightfn df))]     
+   (when-let [norm (safe-divide (sum weightfn df))]     
      (into (priority-map-by >)
        (rollup keyfn (comp (partial * norm) sum) weightfn df)))))
 
@@ -222,7 +224,7 @@
   ([df]
    (mean identity df))
   ([keyfn df]
-   (transduce (col keyfn) x/avg df))
+   (double (transduce (col keyfn) x/avg df)))
   ([keyfn weightfn df]
    (let [keyfn (->keyfn keyfn)]
      (rate #(* (keyfn %) (weightfn %)) weightfn df))))
@@ -231,11 +233,11 @@
   [xs]
   (double (/ (count xs) (sum / xs))))
 
-(def cdf (fn->> distribution
-                (sort-by key)
-                (reductions (fn [[_ acc] [k v]]
-                              [k (+ acc v)]))
-                (into (sorted-map))))
+(def cdf (comp (partial into (sorted-map))
+               (partial reductions (fn [[_ acc] [k v]]
+                                     [k (+ acc v)]))
+               (partial sort-by key)
+               distribution))
 
 (defn smooth
   [window xs]
