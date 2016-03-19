@@ -21,6 +21,15 @@ Add this dependency to your project:
 [huri "0.3.0-SNAPSHOT"]
 ```
 
+To get the plots working make sure you have R installed, and on your path so it's accessible from the command line. If you can run Rscript from the command line, then you should be good to go. You will also need to have some libraries installed which you can do from R REPL with:
+```r
+install.packages("ggplot2")
+install.packages("scales")
+install.packages("grid")
+install.packages("RColorBrewer")
+install.packages("ggrepel")
+```
+
 ## Examples
 
 ## For the future
