@@ -32,6 +32,8 @@ install.packages("ggrepel")
 
 ## Examples
 
+(http://viewer.gorilla-repl.org/view.html?source=github&user=sbelak&repo=huri&path=examples/examples.cljw)[http://viewer.gorilla-repl.org/view.html?source=github&user=sbelak&repo=huri&path=examples/examples.cljw]
+
 ## For the future
 
 * Interactive charts
