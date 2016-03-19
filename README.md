@@ -30,9 +30,7 @@ install.packages("RColorBrewer")
 install.packages("ggrepel")
 ```
 
-## Examples
-
-[http://viewer.gorilla-repl.org/view.html?source=github&user=sbelak&repo=huri&path=examples/examples.cljw]
+## [http://viewer.gorilla-repl.org/view.html?source=github&user=sbelak&repo=huri&path=examples/examples.cljw](Examples)
 
 ## For the future
 
