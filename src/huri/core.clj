@@ -224,7 +224,7 @@
   ([df]
    (mean identity df))
   ([keyfn df]
-   (double (transduce (col keyfn) x/avg df)))
+   (some->> (transduce (col keyfn) x/avg df) double))
   ([keyfn weightfn df]
    (let [keyfn (->keyfn keyfn)]
      (rate #(* (keyfn %) (weightfn %)) weightfn df))))
