@@ -392,11 +392,9 @@
                       :bin-width nil 
                       :density? false
                       :frequency? false}
-  (let [bin-width (cond
-                    bin-width bin-width
-                    (= bins :all) 1
-                    :else  (/ (- (apply max (*df* x)) (apply min (*df* x)))
-                              bins))
+  (let [bin-width (or bin-width
+                      (/ (- (apply max (*df* x)) (apply min (*df* x)))
+                         bins))
         aesthetics (if frequency?
                      {:colour (or group-by colour)}
                      {:fill (or group-by colour)})]
