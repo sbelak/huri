@@ -446,7 +446,7 @@
                         :flip? false
                         :sort-by nil
                         :x-rotate :auto} 
-  [[:ggplot :g [:aes (-> {:x (if (= x-scale :dates)
+  [[:ggplot :g [:aes (-> {:x (if (#{:months :dates} x-scale)
                                x
                                [:reorder x (or sort-by y)])
                           :y y}
