@@ -185,7 +185,7 @@
 (defn safe-divide
   [numerator & denominators]
   (when (or (and (seq denominators) (not-any? zero? denominators))
-            (not (zero? numerator)))
+            (and (not (zero? numerator)) (empty? denominators)))
     (double (apply / numerator denominators))))
 
 (defn sum
