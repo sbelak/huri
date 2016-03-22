@@ -162,7 +162,7 @@
     (->data-frame cols (map (partial mapcat ensure-seq) xs))
     (map (partial zipmap cols) xs)))
 
-(defn mask
+(defn select
   [cols df]
   (map #(safe-select-keys % cols) df))
 
@@ -248,10 +248,17 @@
   (safe-divide (- b a) a)) 
 
 (defn sample
-  [n xs]
-  (into (empty xs)
-    (take n)
-    (shuffle (seq xs))))
+  ([n xs]
+   (sample n {} xs))
+  ([n {:keys [replacement? fraction?]} xs]
+   (into (empty xs)
+     (take (if fraction?
+             (* (count xs) n)
+             n))
+     (if replacement?
+       (repeatedly (let [xs (vec xs)]
+                     #(rand-nth xs)))
+       (shuffle (seq xs))))))
 
 (defn threshold
   [min-size xs]
