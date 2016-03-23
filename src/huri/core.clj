@@ -15,8 +15,8 @@
 (defn mapply
   ([f]
    (map (partial apply f)))
-  ([f coll]
-   (map (partial apply f) coll)))
+  ([f & colls]
+   (apply sequence (mapply f) colls)))
 
 (defn ensure-seq
   [x]
@@ -73,7 +73,9 @@
   ([k]
    (map (->keyfn k)))
   ([k df]
-   (map (->keyfn k) df)))
+   (if (sequential? k)
+     (map #(col % df) k)
+     (sequence (col k) df))))
 
 (defn any-of
   [& keyfns]
@@ -128,7 +130,7 @@
   ([f keyfn df]
    (if (vector? f)
      (map #(summary % keyfn df) f)     
-     (apply f (map #(col % df) (ensure-seq keyfn))))))
+     (apply f (ensure-seq (col keyfn df))))))
 
 (defn update-cols
   [update-fns df]
