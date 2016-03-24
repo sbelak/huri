@@ -89,8 +89,8 @@
   {:combinator every-pred
    :keyfns keyfns})
 
-(defn where
-  [filters df]
+(s/defn where
+  [filters df :- Coll]
   (into (empty df)
     (->> (for [[{:keys [combinator keyfns]} pred] (->filters filters)]
            (apply combinator (map (partial comp pred) keyfns)))
@@ -239,8 +239,8 @@
                (partial sort-by key)
                distribution))
 
-(s/defn smooth
-  [window :- (s/constrained s/Int pos?) xs :- [s/Num]]
+(defn smooth
+  [window xs]
   (sequence (x/partition window 1 (x/reduce x/avg)) xs))
 
 (defn growth
