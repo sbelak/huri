@@ -8,15 +8,17 @@
             [clojure.data.priority-map :refer [priority-map-by]]
             [clojure.math.numeric-tower :refer [ceil expt round]]
             [cheshire.core :as json]
-            [schema.core :as s]            
+            [schema.core :as s]
             [clojure.java.io :as io])
   (:import org.joda.time.DateTime))
+
+(s/set-fn-validation! true)
 
 (defn mapply
   ([f]
    (map (partial apply f)))
-  ([f & colls]
-   (apply sequence (mapply f) colls)))
+  ([f coll & colls]
+   (apply sequence (mapply f) coll colls)))
 
 (defn ensure-seq
   [x]
@@ -33,6 +35,8 @@
 (defn transpose
   [m]
   (apply map vector m))
+
+(s/defschema Coll (s/maybe (s/pred coll?)))
 
 (s/defschema Pred (s/pred ifn?))
 
@@ -73,9 +77,7 @@
   ([k]
    (map (->keyfn k)))
   ([k df]
-   (if (sequential? k)
-     (map #(col % df) k)
-     (sequence (col k) df))))
+   (sequence (col k) df)))
 
 (defn any-of
   [& keyfns]
@@ -96,8 +98,8 @@
          filter)
     df))
 
-(defn rollup
-  ([groupfn f df]
+(s/defn rollup
+  ([groupfn f df :- Coll]
    (into (sorted-map) 
      (x/by-key (->keyfn groupfn) (comp (x/into []) (map f)))       	
      df))
@@ -106,31 +108,33 @@
 
 (def rollup-vals (comp vals rollup))
 
-(defn window
+(s/defn window
   ([f df]
    (window f identity df))
   ([f keyfn df]
    (window 1 f keyfn df))
-  ([lag f keyfn df]
+  ([lag :- (s/constrained s/Int pos?) f keyfn df :- Coll]
    (let [xs (col keyfn df)]
      (map f (drop lag xs) xs))))
 
-(defn size
-  [df]
+(s/defn size
+  [df :- [(s/pred coll?)]]
   [(count df) (count (first df))])
 
-(def cols (comp keys first))
+(s/defn cols
+  [df :- [{s/Any s/Any}]]
+  (keys (first df)))
 
-(defn summary
+(s/defn summary
   ([f]
    (partial summary f))
-  ([f df]
+  ([f df :- Coll]
    (for-map [[as [f k filters]] (map-vals ensure-seq f)]
      as (summary f (or k identity) (cond->> df filters (where filters)))))
   ([f keyfn df]
    (if (vector? f)
      (map #(summary % keyfn df) f)     
-     (apply f (col (ensure-seq keyfn) df)))))
+     (apply f (map #(col % df) (ensure-seq keyfn))))))
 
 (defn update-cols
   [update-fns df]
@@ -138,24 +142,16 @@
                      #(update % k f)))
        df))
 
-(defn assoc-cols
-  [new-cols df]
-  (map (apply comp (for [[k f] new-cols]
-                     #(assoc % k (f %))))
-       df))
-
 (defn derive-cols
   [new-cols df]
-  (assoc-cols (map-vals (fn [[f & cols]]                          
-                          (fn [m]
-                            (apply f (map #((->keyfn %) m) cols))))
-                        new-cols)
-              df))
-
-(defn transform
-  [cols df]
-  (for [row df]
-    (map-vals #((->keyfn %) row) cols)))
+  (map (apply comp (for [[k [f & cols]] (map-vals ensure-seq new-cols)]
+                     (fn [row]
+                       (assoc row k ((if cols
+                                       (fn [m]
+                                         (apply f (map #((->keyfn %) m) cols)))
+                                       f)
+                                     row)))))
+       df))
 
 (defn ->data-frame
   [cols xs]
@@ -182,7 +178,7 @@
   ([df]
    (count (distinct-fast df)))
   ([keyfn df]
-   (count (distinct-by (->keyfn keyfn) df))))
+   (count-distinct (col keyfn df))))
 
 (defn safe-divide
   [numerator & denominators]
@@ -190,10 +186,10 @@
             (and (not (zero? numerator)) (empty? denominators)))
     (double (apply / numerator denominators))))
 
-(defn sum
+(s/defn sum
   ([df]
    (sum identity df))
-  ([keyfn df]
+  ([keyfn df :- Coll]
    (transduce (col keyfn) + df)))
 
 (defn rate
@@ -222,18 +218,20 @@
      (into (priority-map-by >)
        (rollup keyfn (comp (partial * norm) sum) weightfn df)))))
 
-(defn mean
+(s/defn mean
   ([df]
    (mean identity df))
-  ([keyfn df]
+  ([keyfn df :- Coll]
    (some->> (transduce (col keyfn) x/avg df) double))
   ([keyfn weightfn df]
    (let [keyfn (->keyfn keyfn)]
      (rate #(* (keyfn %) (weightfn %)) weightfn df))))
 
 (defn harmonic-mean
-  [xs]
-  (double (/ (count xs) (sum / xs))))
+  ([df]
+   (harmonic-mean identity df))
+  ([keyfn df]
+   (double (/ (count df) (sum (comp / keyfn) df)))))
 
 (def cdf (comp (partial into (sorted-map))
                (partial reductions (fn [[_ acc] [k v]]
@@ -241,26 +239,27 @@
                (partial sort-by key)
                distribution))
 
-(defn smooth
-  [window xs]
+(s/defn smooth
+  [window :- (s/constrained s/Int pos?) xs :- [s/Num]]
   (sequence (x/partition window 1 (x/reduce x/avg)) xs))
 
 (defn growth
   [b a]
   (safe-divide (- b a) a)) 
 
-(defn sample
+(s/defn sample
   ([n xs]
    (sample n {} xs))
-  ([n {:keys [replacement? fraction?]} xs]
-   (into (empty xs)
-     (take (if fraction?
-             (* (count xs) n)
-             n))
-     (if replacement?
-       (repeatedly (let [xs (vec xs)]
-                     #(rand-nth xs)))
-       (shuffle (seq xs))))))
+  ([n :- (s/constrained s/Num pos?) opts xs :- Coll]
+   (let [{:keys [replacement? fraction?]} opts]
+     (into (empty xs)
+       (take (if fraction?
+               (* (count xs) n)
+               n))
+       (if replacement?
+         (repeatedly (let [xs (vec xs)]
+                       #(rand-nth xs)))
+         (shuffle (seq xs)))))))
 
 (defn threshold
   [min-size xs]
@@ -276,8 +275,8 @@
   (let [scale (/ precision)]
     (/ (round (* x scale)) scale)))
 
-(defn extent
-  ([xs]
+(s/defn extent
+  ([xs :- (s/constrained [s/Any] not-empty)]
    [(apply min xs) (apply max xs)])
   ([keyfn df]
    (extent (col keyfn df))))

@@ -1,4 +1,4 @@
-(defproject huri "0.3.0-SNAPSHOT"
+(defproject huri "0.4.0-SNAPSHOT"
   :description "Tools for the lazy data scientist"
   :url "https://github.com/sbelak/huri"
   :license {:name "Eclipse Public License"
@@ -6,7 +6,7 @@
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [clj-time "0.11.0"]                                  
                  [prismatic/plumbing "0.5.2"]
-                 [prismatic/schema "1.0.5"]
+                 [prismatic/schema "1.1.0"]
                  [org.clojure/math.numeric-tower "0.0.4"]                 
                  [org.clojure/data.priority-map "0.0.7"] 
                  [net.cgrand/xforms "0.1.0"]                 
