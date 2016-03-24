@@ -286,9 +286,13 @@
   ([lower upper x]
    (max (min x upper) lower)))
 
-(defn quarter
+(defn quarter-of-year
   [dt]
   (ceil (/ (t/month dt) 3)))
+
+(defn quarter
+  [dt]
+  (t/date-time (t/year dt) (inc (* (dec (quarter-of-year dt)) 4))))
 
 (defn date
   [dt]
