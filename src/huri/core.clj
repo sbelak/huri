@@ -1,7 +1,7 @@
 (ns huri.core
   (:require [huri.schema :refer [defcoercer]]
-            (plumbing [core :refer [distinct-by distinct-fast map-vals safe-get
-                                    map-from-vals map-from-keys for-map]]
+            (plumbing [core :refer [distinct-fast map-vals safe-get for-map
+                                    map-from-vals]]
                       [map :refer [safe-select-keys]])
             [clj-time.core :as t]
             [net.cgrand.xforms :as x]
@@ -165,9 +165,9 @@
   (map #(safe-select-keys % cols) df))
 
 (defn join
-  [left right [left-key right-key] & {:keys [inner-join?]}]
-  (let [left->right (comp (map-from-vals (->keyfn right-key) right)
-                          (->keyfn left-key))]
+  [left right [lkey rkey] & {:keys [inner-join?]}]
+  (let [left->right (comp (map-from-vals (->keyfn rkey) right)
+                          (->keyfn lkey))]
     (for [row left
           :when (or (left->right row) (not inner-join?))]
       (merge row (left->right row)))))
@@ -247,19 +247,18 @@
   [b a]
   (safe-divide (- b a) a)) 
 
-(s/defn sample
+(defn sample
   ([n xs]
    (sample n {} xs))
-  ([n :- (s/constrained s/Num pos?) opts xs :- Coll]
-   (let [{:keys [replacement? fraction?]} opts]
-     (into (empty xs)
-       (take (if fraction?
-               (* (count xs) n)
-               n))
-       (if replacement?
-         (repeatedly (let [xs (vec xs)]
-                       #(rand-nth xs)))
-         (shuffle (seq xs)))))))
+  ([n {:keys [replacement? fraction?]} xs]
+   (into (empty xs)
+     (take (if fraction?
+             (* (count xs) n)
+             n))
+     (if replacement?
+       (repeatedly (let [xs (vec xs)]
+                     #(rand-nth xs)))
+       (shuffle (seq xs))))))
 
 (defn threshold
   [min-size xs]
