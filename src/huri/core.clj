@@ -130,7 +130,7 @@
   ([f keyfn df]
    (if (vector? f)
      (map #(summary % keyfn df) f)     
-     (apply f (ensure-seq (col keyfn df))))))
+     (apply f (col (ensure-seq keyfn) df)))))
 
 (defn update-cols
   [update-fns df]
