@@ -2,9 +2,9 @@
 ;;;; https://github.com/JonyEpsilon/gg4clj
 
 (ns huri.plot
-  (:require [huri.core :refer [rollup assoc-cols]]
+  (:require [huri.core :refer [rollup derive-cols sum]]
             [clojure.string :as s]            
-            [plumbing.core :refer [map-vals for-map assoc-when sum]]
+            [plumbing.core :refer [map-vals for-map assoc-when]]
             [clojure.java.shell :as shell]            
             [clojure.walk :as walk]
             [gorilla-renderable.core :as render]
@@ -304,7 +304,7 @@
                                        df#)
                                ~(first positional-params)))
                 ~'*df* (->r-data-frame (if total#
-                                         (assoc-cols {:group__total total#} df#)
+                                         (derive-cols {:group__total total#} df#)
                                          df#))
                 col-types# (typespec ~'*df*)
                 ~'x-scale (if (= ~'x-scale :auto)
