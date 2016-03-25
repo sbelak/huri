@@ -291,21 +291,26 @@
               (if (map? arg#)
                 (~name :y__auto arg# df#)
                 (~name arg# {} df#)))])       
-       ([~@positional-params options# df#]
+       ([~@positional-params options# df#]        
         (if (sequential? ~(last positional-params))
           (~name ~@(butlast positional-params) :y__auto 
            (assoc options# :group-by :series__auto) 
-           (melt ~(last positional-params) :y__auto :series__auto df#))
-          (let [{:keys ~(mapv #(symbol (subs (str %) 1)) (keys defaults))} 
+           (melt ~(last positional-params) :y__auto :series__auto df#))          
+          (let [{:keys ~(mapv #(symbol (subs (str %) 1)) (keys defaults))
+                 :as options#} 
                 (merge ~defaults options#)
                 total# (when (and ~'trendline? (:stacked? options#))
                          (comp (rollup ~(first positional-params) sum
                                        ~(second positional-params)
                                        df#)
                                ~(first positional-params)))
-                ~'*df* (->r-data-frame (if total#
-                                         (derive-cols {:group__total total#} df#)
-                                         df#))
+                used-cols# (concat ~(vec positional-params) (keys options#))
+                ~'*df* (->> df#
+                            (map #(select-keys % used-cols#))
+                            ((if total#
+                               (partial derive-cols {:group__total total#})
+                               identity))
+                            ->r-data-frame)
                 col-types# (typespec ~'*df*)
                 ~'x-scale (if (= ~'x-scale :auto)
                             (case (col-types# (sanitize-key ~x))
@@ -318,7 +323,7 @@
                               :date :dates
                               :categorical :categorical
                               :linear)
-                            ~'y-scale)]
+                            ~'y-scale)]            
             (view 
              [[:<- :g [:data.frame (map-vals (partial into [:c]) ~'*df*)]]
               preamble
