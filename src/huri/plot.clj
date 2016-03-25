@@ -304,13 +304,16 @@
                                        ~(second positional-params)
                                        df#)
                                ~(first positional-params)))
-                used-cols# (concat ~(vec positional-params) (keys options#))
-                ~'*df* (->> df#
-                            (map #(select-keys % used-cols#))
-                            ((if total#
-                               (partial derive-cols {:group__total total#})
-                               identity))
-                            ->r-data-frame)
+                used-cols# (->> options#
+                                vals
+                                (filter keyword?)
+                                (concat ~(vec positional-params) [:group__total])
+                                (map sanitize-key))
+                ~'*df* (select-keys (->r-data-frame
+                                     (if total#
+                                       (derive-cols {:group__total total#} df#)
+                                       df#))
+                                    used-cols#)
                 col-types# (typespec ~'*df*)
                 ~'x-scale (if (= ~'x-scale :auto)
                             (case (col-types# (sanitize-key ~x))
