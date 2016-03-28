@@ -1,4 +1,4 @@
-(ns taoensso.timbre.appenders.3rd-party.slack
+(ns huri.slack
   {:author "Simon Belak (@sbelak)"}
   (:require (taoensso [timbre :as timbre]
                       [encore :as encore])
