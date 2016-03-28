@@ -345,8 +345,12 @@
    (= (year-month dt) (t/date-time y m))))
 
 (defn spit-json
-  [f x]
-  (json/encode-stream x (io/writer f)))
+  ([f x]
+   (spit-json f {} x))
+  ([f {:keys [cast-fns]} x]
+   (json/encode-stream (cond->> x
+                         cast-fns (update-cols cast-fns))
+                       (io/writer f))))
 
 (defn slurp-json
   [f]
