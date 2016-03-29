@@ -9,7 +9,8 @@
             [clojure.math.numeric-tower :refer [ceil expt round]]
             [cheshire.core :as json]
             [schema.core :as s]
-            [clojure.java.io :as io])
+            [clojure.java.io :as io]
+            [clojure.core.reducers :as r])
   (:import org.joda.time.DateTime))
 
 (s/set-fn-validation! true)
@@ -274,9 +275,16 @@
   (let [scale (/ precision)]
     (/ (round (* x scale)) scale)))
 
-(s/defn extent
-  ([xs :- (s/constrained [s/Any] not-empty)]
-   [(apply min xs) (apply max xs)])
+(defn extent
+  ([xs]
+   (let [[x & xs] xs]
+     (r/fold (r/monoid (if (instance? org.joda.time.DateTime x)
+                         (fn [[acc-min acc-max] x]
+                           [(t/earliest acc-min x) (t/latest acc-max x)])
+                         (fn [[acc-min acc-max] x]
+                           [(min acc-min x) (max acc-max x)]))
+                       (constantly [x x]))             
+             xs)))
   ([keyfn df]
    (extent (col keyfn df))))
 
@@ -355,3 +363,4 @@
 (defn slurp-json
   [f]
   (json/decode-stream (io/reader f) true))
+
