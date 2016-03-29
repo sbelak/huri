@@ -328,8 +328,8 @@
                 col-types# (typespec ~'*df*)
                 ~'x-scale (if (= ~'x-scale :auto)
                             (case (cond->> (col-types# (sanitize-key ~x))
-                                    (= ~name bar-chart) (#(get #{:date} %
-                                                               :categorical)))
+                                    (= '~name 'bar-chart) (#(get #{:date} %
+                                                                 :categorical)))
                               :date :dates
                               :categorical :categorical
                               :linear)
