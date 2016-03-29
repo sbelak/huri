@@ -166,6 +166,10 @@
   [x]
   x)
 
+(defmethod ->r-type clojure.lang.BigInt
+  [x]
+  (long x))
+
 (defmethod ->r-type clojure.lang.Ratio
   [x]
   (double x))
@@ -323,7 +327,9 @@
                                     used-cols#)
                 col-types# (typespec ~'*df*)
                 ~'x-scale (if (= ~'x-scale :auto)
-                            (case (col-types# (sanitize-key ~x))
+                            (case (cond->> (col-types# (sanitize-key ~x))
+                                    (= ~name bar-chart) (#(get #{:date} %
+                                                               :categorical)))
                               :date :dates
                               :categorical :categorical
                               :linear)
