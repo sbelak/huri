@@ -2,13 +2,14 @@
 ;;;; https://github.com/JonyEpsilon/gg4clj
 
 (ns huri.plot
-  (:require [huri.core :refer [rollup derive-cols sum]]
+  (:require [huri.core :refer [rollup derive-cols sum col extent]]
             [clojure.string :as s]            
             [plumbing.core :refer [map-vals for-map assoc-when]]
             [clojure.java.shell :as shell]            
             [clojure.walk :as walk]
             [gorilla-renderable.core :as render]
-            [clojure.xml :as xml])
+            [clojure.xml :as xml]
+            [clj-time.core :as t])
   (:import org.joda.time.DateTime
            java.io.File
            java.util.UUID))
@@ -139,7 +140,7 @@
         (s/replace #"(?:^\d)|\W" (comp (partial str "__") int first))
         keyword)))
 
-(defmulti ->r-type type)
+(defmulti ->r-type class)
 
 (defmethod ->r-type clojure.lang.Keyword
   [x]
@@ -181,16 +182,16 @@
   [x]
   [:as.Date (str x)])
 
-(defn- ->r-data-frame
+(defn- ->col-oriented
   [df]
   (cond
-    (map? df) (->r-data-frame (seq df))
+    (map? df) (->col-oriented (seq df))
     (map? (first df)) (for-map [k (keys (first df))]
-                        (sanitize-key k) (map (comp ->r-type k) df))
+                        (sanitize-key k) (col k df))
     (sequential? (first df)) (->> df
                                   (map (partial zipmap [:x__auto :y__auto]))
-                                  ->r-data-frame)
-    :else (->r-data-frame (map vector (range) df))))
+                                  ->col-oriented)
+    :else (->col-oriented (map vector (range) df))))
 
 (defn melt
   [cols value-col group-col df]
@@ -205,10 +206,17 @@
   [df]
   (map-vals (comp #(cond
                      (number? %) :number
-                     (string? %) :categorical
-                     (and (vector? %) (= :as.Date (first %))) :date)
+                     (instance? org.joda.time.DateTime %) :date
+                     :else :categorical)
                   first)
             df))
+
+(defn- date-scale-resolution
+  [dts]  
+  (let [[start end] (extent dts)]
+    (if (< (t/in-days (t/interval start end)) 90)
+      "%d-%b"
+      "%b-%y")))
 
 (def preamble [[:library :ggplot2]
                [:library :scales]
@@ -297,8 +305,7 @@
            (assoc options# :group-by :series__auto) 
            (melt ~(last positional-params) :y__auto :series__auto df#))          
           (let [{:keys ~(mapv #(symbol (subs (str %) 1)) (keys defaults))
-                 :as options#} 
-                (merge ~defaults options#)
+                 :as options#} (merge ~defaults options#)
                 total# (when (and ~'trendline? (:stacked? options#))
                          (comp (rollup ~(first positional-params) sum
                                        ~(second positional-params)
@@ -309,7 +316,7 @@
                                 (filter keyword?)
                                 (concat ~(vec positional-params) [:group__total])
                                 (map sanitize-key))
-                ~'*df* (select-keys (->r-data-frame
+                ~'*df* (select-keys (->col-oriented
                                      (if total#
                                        (derive-cols {:group__total total#} df#)
                                        df#))
@@ -328,7 +335,9 @@
                               :linear)
                             ~'y-scale)]            
             (view 
-             [[:<- :g [:data.frame (map-vals (partial into [:c]) ~'*df*)]]
+             [[:<- :g [:data.frame (map-vals (comp (partial into [:c])
+                                                   (partial map ->r-type))
+                                             ~'*df*)]]
               preamble
               (->> (concat (let [~@(mapcat #(vector % `(sanitize-key ~%))
                                            (concat positional-params
@@ -355,16 +364,20 @@
                               :sqrt [:scale_x_sqrt {:labels :comma}]
                               :linear [:scale_x_continuous {:labels :comma}]
                               :percent [:scale_x_continuous {:labels :percent}]
-                              :months [:scale_x_date {:labels [:date_format "%b-%y"]}]
-                              :dates [:scale_x_date {:labels [:date_format "%d-%b"]}]
+                              :dates [:scale_x_date
+                                      {:labels [:date_format
+                                                (date-scale-resolution
+                                                 (~'*df* (sanitize-key ~x)))]}]
                               :categorical nil) 
                             (case ~'y-scale
                               :log [:scale_y_log10 {:labels :comma}]
                               :sqrt [:scale_y_sqrt {:labels :comma}]
                               :linear [:scale_y_continuous {:labels :comma}]
                               :percent [:scale_y_continuous {:labels :percent}]
-                              :months [:scale_y_date {:labels [:date_format "%b-%y"]}]
-                              :dates [:scale_y_date {:labels [:date_format "%d-%b"]}]
+                              :dates [:scale_y_date
+                                      {:labels [:date_format
+                                                (date-scale-resolution
+                                                 (~'*df* (sanitize-key ~y)))]}]
                               :categorical nil)
                             theme 
                             (when-not (or (true? ~'legend?)
@@ -452,7 +465,7 @@
                         :flip? false
                         :sort-by nil
                         :x-rotate :auto} 
-  [[:ggplot :g [:aes (-> {:x (if (#{:months :dates} x-scale)
+  [[:ggplot :g [:aes (-> {:x (if (= :dates x-scale)
                                x
                                [:reorder x (or sort-by y)])
                           :y y}
