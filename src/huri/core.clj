@@ -346,11 +346,21 @@
   [dt]
   (t/after? dt (t/now)))
 
+(def not-before? (complement before?))
+(def not-after? (complement after?))
+
 (defn in?
   ([dt y]
    (= (t/year dt) y))
   ([dt y m]
    (= (year-month dt) (t/date-time y m))))
+
+(defn in-last?
+  [dt p]
+  (not-before? dt (t/minus (if (= (class p) org.joda.time.Years)
+                             (year-month (t/now))
+                             (date (t/now)))
+                           p)))
 
 (defn spit-json
   ([f x]
