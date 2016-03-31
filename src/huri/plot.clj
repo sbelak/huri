@@ -418,7 +418,8 @@
 (defplot histogram x {:bins 20 
                       :bin-width nil 
                       :density? false
-                      :frequency? false}
+                      :frequency? false
+                      :show-mean? true}
   (let [bin-width (or bin-width
                       (/ (- (apply max (*df* x)) (apply min (*df* x)))
                          bins))
@@ -438,6 +439,10 @@
                                  :alpha alpha}
                                 (when-not group-by
                                   aesthetics))]
+     (when show-mean?
+       [:geom_vline [:aes {:xintercept [:mean x]}] {:linetype "dashed"
+                                                    :color (or group-by colour)
+                                                    :size 0.5}])
      [:geom_hline {:yintercept 0 :size 0.4 :colour "black"}]]))
 
 (defplot line-chart x y {:show-points? :auto
