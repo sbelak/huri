@@ -35,11 +35,16 @@
                 (pfnk/output-schema f)]))))
 
 (defn run
-  ([]
-   (into {} ((graph/par-compile (with-error-handler @task-graph)) {})))
-  ([tasks]
-   (safe-select-keys ((graph/lazy-compile (with-error-handler @task-graph)) {})
-                     tasks)))
+  [& {:keys [execution-strategy] :or {execution-strategy :parallel}}]
+  (into {} ((case execution-strategy
+              :parallel graph/par-compile
+              :sequential graph/compile)
+            (with-error-handler @task-graph)) {}))
+
+(defn run-only
+  [tasks & {:keys [evaluation-strategy] :or {evaluation-strategy :parallel}}]
+  (safe-select-keys ((graph/lazy-compile (with-error-handler @task-graph)) {})
+                     tasks))
 
 (defn run-if
   [pred]
