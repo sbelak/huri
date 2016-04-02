@@ -1,7 +1,7 @@
 (ns huri.core
   (:require [huri.schema :refer [defcoercer]]
             (plumbing [core :refer [distinct-fast map-vals safe-get for-map
-                                    map-from-vals]]
+                                    map-from-vals singleton]]
                       [map :refer [safe-select-keys]])
             [clj-time.core :as t]
             [net.cgrand.xforms :as x]
@@ -136,6 +136,19 @@
    (if (vector? f)
      (map #(summary % keyfn df) f)     
      (apply f (map #(col % df) (ensure-seq keyfn))))))
+
+(s/defn rollup-summary
+  ([groupfn f]
+   (partial rollup-summary groupfn f))
+  ([groupfn f :- {s/Any s/Any} df :- Coll]
+   (let [groupfn (cond
+                   (map? groupfn) groupfn
+                   (keyword? groupfn) {groupfn groupfn}
+                   :else {:group groupfn})]
+     (rollup-vals (or (singleton (vals groupfn))
+                      (apply juxt (vals groupfn)))
+                  (summary (merge f (map-vals #(comp % first) groupfn)))
+                  df))))
 
 (defn update-cols
   [update-fns df]

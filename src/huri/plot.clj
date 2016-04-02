@@ -448,7 +448,8 @@
 (defplot line-chart x y {:show-points? :auto
                          :fill? false
                          :alpha 0.5
-                         :share-x? false}
+                         :share-x? false
+                         :size nil}
   [[:ggplot :g [:aes (merge {:x x :y y} 
                             (when group-by
                               {:group group-by 
@@ -461,9 +462,13 @@
              (and (= show-points? :auto)
                   (not fill?)
                   (< (count (*df* x)) 50)))
-     [:geom_point (if group-by
-                    {}
-                    {:colour colour})])
+     (let [aesthetics (-> {:alpha (if size
+                                    alpha
+                                    1)}
+                          (assoc-when :colour colour))]
+       (if size
+         [:geom_point [:aes {:size size}] aesthetics]
+         [:geom_point aesthetics])))
    (when fill?
      [:geom_area (merge {:alpha alpha}
                         (when-not group-by
@@ -490,9 +495,11 @@
      [:coord_flip])])
 
 (defplot scatter-plot x y {:alpha 0.5
-                           :label nil}
+                           :label nil
+                           :size nil}
   [[:ggplot :g [:aes (-> {:x x :y y}
-                         (assoc-when :colour group-by))]]
+                         (assoc-when :colour group-by)
+                         (assoc-when :size size))]]
    [:geom_point (merge {:alpha alpha}
                        (when-not group-by
                          {:colour colour}))]
