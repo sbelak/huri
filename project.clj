@@ -5,7 +5,7 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [clj-time "0.11.0"]                                  
-                 [prismatic/plumbing "0.5.2"]
+                 [prismatic/plumbing "0.5.3"]
                  [prismatic/schema "1.1.0"]
                  [org.clojure/math.numeric-tower "0.0.4"]                 
                  [org.clojure/data.priority-map "0.0.7"] 
