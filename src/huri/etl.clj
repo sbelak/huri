@@ -36,10 +36,10 @@
 
 (defn run
   [& {:keys [execution-strategy] :or {execution-strategy :parallel}}]
-  (into {} ((case execution-strategy
-              :parallel graph/par-compile
-              :sequential graph/compile)
-            (with-error-handler @task-graph)) {}))
+  (into {} (((case execution-strategy
+               :parallel graph/par-compile
+               :sequential graph/compile)
+             (with-error-handler @task-graph)) {})))
 
 (defn run-only
   [tasks & {:keys [evaluation-strategy] :or {evaluation-strategy :parallel}}]
