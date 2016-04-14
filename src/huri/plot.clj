@@ -365,6 +365,10 @@
                                 [:geom_smooth {:alpha 0.25
                                                :colour "black"
                                                :fill "black"}]))
+                            (when (and ~'share-x? ~'group-by)
+                              [:facet_grid (keyword (format "%s ~ ."
+                                                            (name ~'group-by)))
+                               {:scales "free_y"}])
                             (case ~'x-scale
                               :log [:scale_x_log10 {:labels :comma}]
                               :sqrt [:scale_x_sqrt {:labels :comma}]
@@ -448,7 +452,6 @@
 (defplot line-chart x y {:show-points? :auto
                          :fill? false
                          :alpha 0.5
-                         :share-x? false
                          :size nil}
   [[:ggplot :g [:aes (merge {:x x :y y} 
                             (when group-by
@@ -472,10 +475,7 @@
    (when fill?
      [:geom_area (merge {:alpha alpha}
                         (when-not group-by
-                          {:fill colour}))])
-   (when (and share-x? group-by)
-     [:facet_grid (keyword (format "%s ~ ." (name group-by)))
-      {:scales "free_y"}])])
+                          {:fill colour}))])])
 
 (defplot bar-chart x y {:stacked? false 
                         :flip? false

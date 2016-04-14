@@ -21,6 +21,10 @@
   ([f coll & colls]
    (apply sequence (mapply f) coll colls)))
 
+(defmacro for-cat
+  [& for-body]
+  `(apply concat (for ~@for-body)))
+
 (defn ensure-seq
   [x]
   (if (sequential? x)
@@ -108,6 +112,7 @@
    (rollup groupfn (comp f (partial col keyfn)) df)))
 
 (def rollup-vals (comp vals rollup))
+(def rollup-cat (comp (partial apply concat) rollup-vals))
 
 (s/defn window
   ([f df]
