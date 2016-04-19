@@ -157,19 +157,20 @@
 
 (defn update-cols
   [update-fns df]
-  (map (apply comp (for [[k f] update-fns]
-                     #(update % k f)))
+  (map (apply comp (for [[ks f] update-fns]
+                     #(update-in % (ensure-seq ks) f)))
        df))
 
 (defn derive-cols
   [new-cols df]
-  (map (apply comp (for [[k [f & cols]] (map-vals ensure-seq new-cols)]
+  (map (apply comp (for [[ks [f & cols]] (map-vals ensure-seq new-cols)]
                      (fn [row]
-                       (assoc row k ((if cols
-                                       (fn [m]
-                                         (apply f (map #((->keyfn %) m) cols)))
-                                       f)
-                                     row)))))
+                       (assoc-in row (ensure-seq ks)
+                                 ((if cols
+                                    (fn [m]
+                                      (apply f (map #((->keyfn %) m) cols)))
+                                    f)
+                                  row)))))
        df))
 
 (defn ->data-frame
