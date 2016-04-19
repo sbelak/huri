@@ -155,6 +155,19 @@
                   (summary (merge f (map-vals #(comp % first) groupfn)))
                   df))))
 
+(s/defn rollup-indexed
+  ([indexfn f]
+   (partial rollup-indexed indexfn f))
+  ([indexfn f :- {s/Any s/Any} df :- Coll]
+   (->> df
+        (rollup indexfn (summary f))
+        (reduce-kv (fn [acc idx kvs]
+                     (reduce-kv (fn [acc k v]
+                                  (update acc k conj [idx v]))
+                                acc
+                                kvs))
+                   (map-vals (constantly (sorted-map)) f)))))
+
 (defn update-cols
   [update-fns df]
   (map (apply comp (for [[ks f] update-fns]
