@@ -131,6 +131,15 @@
   [df :- [{s/Any s/Any}]]
   (keys (first df)))
 
+(defn col-oriented
+  [df]
+  (for-map [k (cols df)]
+    k (col k df)))
+
+(defn row-oriented
+  [m]
+  (apply map (comp (partial zipmap (keys m)) vector) (vals m)))
+
 (s/defn summary
   ([f]
    (partial summary f))
