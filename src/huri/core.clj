@@ -341,7 +341,7 @@
 
 (defn quarter
   [dt]
-  (t/date-time (t/year dt) (inc (* (dec (quarter-of-year dt)) 4))))
+  (t/date-time (t/year dt) (inc (* (dec (quarter-of-year dt)) 3))))
 
 (defn date
   [dt]
