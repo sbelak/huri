@@ -18,7 +18,7 @@ I gave about motivation and design phiosophy behind Huri at ClojureD 2016: [vide
 Add this dependency to your project:
 
 ```clj
-[huri "0.4.0-SNAPSHOT"]
+[huri "0.5.0-SNAPSHOT"]
 ```
 
 To get the plots working make sure you have R installed, and on your path so it's accessible from the command line. If you can run Rscript from the command line, then you should be good to go. You will also need to have some libraries installed which you can do from R REPL with:
@@ -39,7 +39,7 @@ install.packages("ggrepel")
 * https://github.com/plumatic/plumbing
 * https://github.com/metasoarous/semantic-csv
 * https://github.com/expez/superstring
-
+* https://github.com/sbelak/tide
 
 ## For the future
 
