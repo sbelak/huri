@@ -1,7 +1,7 @@
 (ns huri.core
   (:require [huri.schema :refer [defcoercer]]
             (plumbing [core :refer [distinct-fast map-vals safe-get for-map
-                                    map-from-vals singleton]]
+                                    map-from-vals]]
                       [map :refer [safe-select-keys]])
             [clj-time.core :as t]
             [net.cgrand.xforms :as x]
@@ -41,13 +41,22 @@
   [m]
   (apply map vector m))
 
+(s/defschema IFn (s/pred ifn?))
+
+(s/defn derrive
+  ([fs]
+   (partial derrive fs))
+  ([fs :- {s/Any (s/pred ifn?)} x]
+   (for-map [[k f] fs]
+     k (f x))))
+
 (s/defschema Coll (s/maybe (s/pred coll?)))
 
-(s/defschema Pred (s/pred ifn?))
+(s/defschema Pred IFn)
 
-(s/defschema KeyFn (s/pred ifn?))
+(s/defschema KeyFn IFn)
 
-(s/defschema KeyCombinator {:combinator (s/pred ifn?)
+(s/defschema KeyCombinator {:combinator IFn
                             :keyfns [KeyFn]})
 
 (s/defschema Filters {KeyCombinator Pred})
@@ -103,16 +112,53 @@
          filter)
     df))
 
+(s/defn summary
+  ([f]
+   (partial summary f))
+  ([f df :- Coll]
+   (for-map [[as [f k filters]] (map-vals ensure-seq f)]
+     as (summary f (or k identity) (cond->> df filters (where filters)))))
+  ([f keyfn df]
+   (apply f (map #(col % df) (ensure-seq keyfn)))))
+
 (s/defn rollup
   ([groupfn f df :- Coll]
    (into (sorted-map) 
-     (x/by-key (->keyfn groupfn) (comp (x/into []) (map f)))       	
+     (x/by-key (->keyfn groupfn) (comp (x/into [])
+                                       (map (if (map? f)
+                                              (summary f)
+                                              f))))       	
      df))
   ([groupfn f keyfn df]
    (rollup groupfn (comp f (partial col keyfn)) df)))
 
 (def rollup-vals (comp vals rollup))
 (def rollup-cat (comp (partial apply concat) rollup-vals))
+
+(s/defn rollup-fuse
+  ([groupfn f]
+   (partial rollup-fuse groupfn f))
+  ([groupfn f :- {s/Any s/Any} df :- Coll]
+   (let [groupfn (cond
+                   (map? groupfn) groupfn
+                   (keyword? groupfn) {groupfn groupfn}
+                   :else {::group groupfn})]
+     (rollup-vals (apply juxt (vals groupfn))
+                  (merge f (map-vals #(comp % first) groupfn))
+                  df))))
+
+(s/defn rollup-transpose
+  ([indexfn f]
+   (partial rollup-transpose indexfn f))
+  ([indexfn f :- {s/Any s/Any} df :- Coll]
+   (->> df
+        (rollup indexfn f)
+        (reduce-kv (fn [acc idx kvs]
+                     (reduce-kv (fn [acc k v]
+                                  (update acc k conj [idx v]))
+                                acc
+                                kvs))
+                   (map-vals (constantly (sorted-map)) f)))))
 
 (s/defn window
   ([f df]
@@ -139,43 +185,6 @@
 (defn row-oriented
   [m]
   (apply map (comp (partial zipmap (keys m)) vector) (vals m)))
-
-(s/defn summary
-  ([f]
-   (partial summary f))
-  ([f df :- Coll]
-   (for-map [[as [f k filters]] (map-vals ensure-seq f)]
-     as (summary f (or k identity) (cond->> df filters (where filters)))))
-  ([f keyfn df]
-   (if (vector? f)
-     (map #(summary % keyfn df) f)     
-     (apply f (map #(col % df) (ensure-seq keyfn))))))
-
-(s/defn rollup-summary
-  ([groupfn f]
-   (partial rollup-summary groupfn f))
-  ([groupfn f :- {s/Any s/Any} df :- Coll]
-   (let [groupfn (cond
-                   (map? groupfn) groupfn
-                   (keyword? groupfn) {groupfn groupfn}
-                   :else {:group groupfn})]
-     (rollup-vals (or (singleton (vals groupfn))
-                      (apply juxt (vals groupfn)))
-                  (summary (merge f (map-vals #(comp % first) groupfn)))
-                  df))))
-
-(s/defn rollup-indexed
-  ([indexfn f]
-   (partial rollup-indexed indexfn f))
-  ([indexfn f :- {s/Any s/Any} df :- Coll]
-   (->> df
-        (rollup indexfn (summary f))
-        (reduce-kv (fn [acc idx kvs]
-                     (reduce-kv (fn [acc k v]
-                                  (update acc k conj [idx v]))
-                                acc
-                                kvs))
-                   (map-vals (constantly (sorted-map)) f)))))
 
 (defn update-cols
   [update-fns df]
@@ -214,7 +223,11 @@
           :when (or (left->right row) (not inner-join?))]
       (merge row (left->right row)))))
 
-(def count-where (comp count where))
+(defn count-where
+  ([filters]
+   (partial count-where filters))
+  ([filters df]
+   (count (where filters df))))
 
 (defn count-distinct
   ([df]
