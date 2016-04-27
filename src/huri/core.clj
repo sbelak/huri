@@ -265,13 +265,20 @@
 
 (defn distribution
   ([df]
-   (distribution identity df))
+   (distribution identity {} df))
   ([keyfn df]
-   (distribution keyfn (constantly 1) df))
-  ([keyfn weightfn df]
-   (when-let [norm (safe-divide (sum weightfn df))]     
-     (into (priority-map-by >)
-       (rollup keyfn (comp (partial * norm) sum) weightfn df)))))
+   (distribution keyfn {} df))
+  ([keyfn opts df]
+   (let [{:keys [weightfn limit cutoff]
+          :or {weightfn (constantly 1)}} opts]
+     (when-let [norm (safe-divide (sum weightfn df))]
+       (let [d (into (priority-map-by >)
+                 (rollup keyfn (comp (partial * norm) sum) weightfn df))]
+         (if-let [cutoff (or cutoff (some-> limit dec (drop d) first val))]
+           (let [[d other] (split-with (comp (partial <= cutoff) val) d)]
+             (cond-> (into (priority-map-by >) d)
+               (not-empty other) (assoc :other (sum val other))))
+           d))))))
 
 (s/defn mean
   ([df]
