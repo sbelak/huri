@@ -1,5 +1,5 @@
 (ns huri.core
-  (:require [huri.schema :refer [defcoercer]]
+  (:require [huri.schema :refer :all]
             (plumbing [core :refer [distinct-fast map-vals safe-get for-map
                                     map-from-vals]]
                       [map :refer [safe-select-keys]])
@@ -25,12 +25,6 @@
   [& for-body]
   `(apply concat (for ~@for-body)))
 
-(defn ensure-seq
-  [x]
-  (if (sequential? x)
-    x
-    [x]))
-
 (defn fsome
   [f]
   (fn [& args]
@@ -41,16 +35,12 @@
   [m]
   (apply map vector m))
 
-(s/defschema IFn (s/pred ifn?))
-
 (s/defn derrive
   ([fs]
    (partial derrive fs))
-  ([fs :- {s/Any (s/pred ifn?)} x]
+  ([fs :- {s/Any IFn} x]
    (for-map [[k f] fs]
      k (f x))))
-
-(s/defschema Coll (s/maybe (s/pred coll?)))
 
 (s/defschema Pred IFn)
 
@@ -66,6 +56,12 @@
   (if (keyword? x)
     #(safe-get % x)
     x))
+
+(defn col
+  ([k]
+   (map (->keyfn k)))
+  ([k df]
+   (sequence (col k) df)))
 
 (defcoercer ->pred Pred
   [x]
@@ -86,12 +82,6 @@
   (if (map? x)
     x
     {identity x}))
-
-(defn col
-  ([k]
-   (map (->keyfn k)))
-  ([k df]
-   (sequence (col k) df)))
 
 (defn any-of
   [& keyfns]
@@ -116,8 +106,13 @@
   ([f]
    (partial summary f))
   ([f df :- Coll]
-   (for-map [[as [f k filters]] (map-vals ensure-seq f)]
-     as (summary f (or k identity) (cond->> df filters (where filters)))))
+   (->> f
+        (coerce {s/Any (AlwaysSeq (s/one IFn "f")
+                                  (s/optional (AlwaysSeq KeyFn) "keyfn")
+                                  Filters)})
+        (map-vals (fn [[f k filters]]
+                    (summary f (or k identity)
+                             (cond->> df filters (where filters)))))))
   ([f keyfn df]
    (apply f (map #(col % df) (ensure-seq keyfn)))))
 
@@ -138,19 +133,19 @@
 (s/defn rollup-fuse
   ([groupfn f]
    (partial rollup-fuse groupfn f))
-  ([groupfn f :- {s/Any s/Any} df :- Coll]
+  ([groupfn f :- Map df]
    (let [groupfn (cond
                    (map? groupfn) groupfn
                    (keyword? groupfn) {groupfn groupfn}
                    :else {::group groupfn})]
-     (rollup-vals (apply juxt (vals groupfn))
+     (rollup-vals (apply juxt (map ->keyfn (vals groupfn)))
                   (merge f (map-vals #(comp % first) groupfn))
                   df))))
 
 (s/defn rollup-transpose
   ([indexfn f]
    (partial rollup-transpose indexfn f))
-  ([indexfn f :- {s/Any s/Any} df :- Coll]
+  ([indexfn f :- Map df :- Coll]
    (->> df
         (rollup indexfn f)
         (reduce-kv (fn [acc idx kvs]
@@ -170,11 +165,11 @@
      (map f (drop lag xs) xs))))
 
 (s/defn size
-  [df :- [(s/pred coll?)]]
+  [df :- [Coll]]
   [(count df) (count (first df))])
 
 (s/defn cols
-  [df :- [{s/Any s/Any}]]
+  [df :- [Map]]
   (keys (first df)))
 
 (defn col-oriented
@@ -186,23 +181,25 @@
   [m]
   (apply map (comp (partial zipmap (keys m)) vector) (vals m)))
 
-(defn update-cols
-  [update-fns df]
-  (map (apply comp (for [[ks f] update-fns]
-                     #(update-in % (ensure-seq ks) f)))
-       df))
-
 (defn derive-cols
   [new-cols df]
-  (map (apply comp (for [[ks [f & cols]] (map-vals ensure-seq new-cols)]
+  (map (->> new-cols
+            (coerce {(AlwaysSeq s/Keyword) (AlwaysSeq (s/one IFn "f") KeyFn)})
+            (map (fn [[ks [f & cols]]]
+                   (let [f (if cols
+                             (fn [m]
+                               (apply f (map #(% m) cols)))
+                             f)]
                      (fn [row]
-                       (assoc-in row (ensure-seq ks)
-                                 ((if cols
-                                    (fn [m]
-                                      (apply f (map #((->keyfn %) m) cols)))
-                                    f)
-                                  row)))))
+                       (assoc-in row ks (f row))))))
+            (apply comp))
        df))
+
+(defn update-cols
+  [update-fns df]
+  (derive-cols (for-map [[k f] update-fns]
+                 k [f k])
+               df))
 
 (defn ->data-frame
   [cols xs]
@@ -211,7 +208,7 @@
     (->data-frame cols (map (partial mapcat ensure-seq) xs))
     (map (partial zipmap cols) xs)))
 
-(defn select
+(defn select-cols
   [cols df]
   (map #(safe-select-keys % cols) df))
 
@@ -308,19 +305,6 @@
 (defn growth
   [b a]
   (safe-divide (- b a) a)) 
-
-(defn sample
-  ([n xs]
-   (sample n {} xs))
-  ([n {:keys [replacement? fraction?]} xs]
-   (into (empty xs)
-     (take (if fraction?
-             (* (count xs) n)
-             n))
-     (if replacement?
-       (repeatedly (let [xs (vec xs)]
-                     #(rand-nth xs)))
-       (shuffle (seq xs))))))
 
 (defn threshold
   [min-size xs]

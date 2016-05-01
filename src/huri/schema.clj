@@ -1,11 +1,7 @@
 (ns huri.schema
-  (:require [plumbing.core :refer [map-from-keys]]
-            [plumbing.fnk.schema :refer [assert-iae]]  
-            [schema.coerce :as s.coerce]))
-
-(def schema-set (comp set
-                      (partial keep (comp :name meta))
-                      (partial tree-seq coll? seq)))
+  (:require [plumbing.fnk.schema :refer [assert-iae]]  
+            (schema [coerce :as s.coerce]
+                    [core :as s])))
 
 (def coercers (atom {}))
 
@@ -13,13 +9,30 @@
   [schema coercer]
   (swap! coercers assoc (:name (meta schema)) coercer))
 
+(defn coerce
+  ([schema]
+   (s.coerce/coercer! schema (comp @coercers :name meta)))
+  ([schema x]
+   ((coerce schema) x)))
+
 (defmacro defcoercer
   [name schema [& args] & body]
   `(do
      (assert-iae (-> ~schema meta :name) "%s is not a named schema" ~schema)
      (register-coercer ~schema (fn [~@args] ~@body))
-     (def ~name (s.coerce/coercer ~schema (comp (->> ~schema
-                                                     schema-set
-                                                     (map-from-keys @coercers))
-                                                :name
-                                                meta)))))
+     (def ~name (coerce ~schema))))
+
+(s/defschema IFn (s/pred ifn?))
+(s/defschema Coll (s/maybe (s/pred coll?)))
+(s/defschema Map {s/Any s/Any})
+
+(defn AlwaysSeq
+  [& s]
+  (s/schema-with-name (vec s) 'AlwaysSeq))
+
+(defcoercer ensure-seq (AlwaysSeq s/Any)
+  [x]
+  (if (sequential? x)
+    x
+    [x]))
+

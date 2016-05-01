@@ -19,13 +19,15 @@
      (register-task ~(keyword task)
                     (vary-meta ~task (partial merge (meta (var ~task)))))))
 
+(def exception? (partial instance? Exception))
+
 (def with-error-handler 
   (partial map-leaves-and-path
            (fn [ks f]
              (pfnk/fn->fnk
                (fn [m]
                  (try
-                   (if (some (comp (partial instance? Exception) val) m)
+                   (if (some (comp exception? val) m)
                      (throw (ex-info "Upstream error" {}))
                      (f m))
                    (catch Exception e

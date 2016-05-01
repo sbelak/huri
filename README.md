@@ -40,6 +40,7 @@ install.packages("ggrepel")
 * https://github.com/metasoarous/semantic-csv
 * https://github.com/expez/superstring
 * https://github.com/sbelak/tide
+* https://github.com/bigmlcom/sampling
 
 ## For the future
 
