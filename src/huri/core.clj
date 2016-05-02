@@ -42,6 +42,12 @@
    (for-map [[k f] fs]
      k (f x))))
 
+(defcoercer ensure-seq (AlwaysSeq s/Any)
+  [x]
+  (if (sequential? x)
+    x
+    [x]))
+
 (s/defschema Pred IFn)
 
 (s/defschema KeyFn IFn)

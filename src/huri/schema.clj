@@ -30,9 +30,3 @@
   [& s]
   (s/schema-with-name (vec s) 'AlwaysSeq))
 
-(defcoercer ensure-seq (AlwaysSeq s/Any)
-  [x]
-  (if (sequential? x)
-    x
-    [x]))
-
