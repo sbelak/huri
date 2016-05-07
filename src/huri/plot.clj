@@ -465,10 +465,11 @@
              (and (= show-points? :auto)
                   (not fill?)
                   (< (count (*df* x)) 50)))
-     (let [aesthetics (-> {:alpha (if size
-                                    alpha
-                                    1)}
-                          (assoc-when :colour colour))]
+     (let [aesthetics (merge {:alpha (if size
+                                       alpha
+                                       1)}
+                             (when-not group-by
+                               {:colour colour}))]
        (if size
          [:geom_point [:aes {:size size}] aesthetics]
          [:geom_point aesthetics])))
