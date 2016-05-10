@@ -387,7 +387,7 @@
 
 (defn between?
   [this start end]
-  (t/within? start end this))
+  (t/within? (t/interval start end) this))
 
 (defn before-now?
   [dt]
