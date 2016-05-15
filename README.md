@@ -45,7 +45,7 @@ install.packages("ggrepel")
 ## For the future
 
 * Interactive charts
-* Optimizing `->>` that rewrites code on the fly to do as much as possible in a single pass and use transducer fusion more extnesively (intermediate results don't need to be end user consumable).
+* Optimizing `->>` that rewrites code on the fly to do as much as possible in a single pass and use transducer fusion more extnesively (intermediate results don't need to be end user consumable).
 
 
 ## License

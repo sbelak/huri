@@ -379,6 +379,10 @@
                    (first that)
                    (apply t/date-time that))))
 
+(defn since?
+  [this p]
+  (after? this (t/minus (t/now) p)))
+
 (defn before?
   [this & that]
   (t/before? this (if (instance? org.joda.time.DateTime (first that))
