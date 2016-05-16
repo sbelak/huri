@@ -316,9 +316,10 @@
                                        df#)
                                ~(first positional-params)))
                 used-cols# (->> options#
-                                vals
-                                (filter keyword?)
+                                vals                                
                                 (concat ~(vec positional-params) [:group__total])
+                                flatten
+                                (filter keyword?)
                                 (map sanitize-key))
                 ~'*df* (select-keys (->col-oriented
                                      (if total#
