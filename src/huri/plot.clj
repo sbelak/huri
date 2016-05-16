@@ -355,7 +355,7 @@
                                             (if (sequential? ~'facet)
                                               (->> ~'facet
                                                    (map name)
-                                                   (apply format "%s ~ %s"))
+                                                   (s/join "%s ~ %s"))
                                               (str "~" (name ~'facet))))])
                             (when ~'trendline?
                               (if total#
@@ -395,7 +395,8 @@
                                           (and ~'legend?
                                                ~'group-by
                                                (not ~'share-x?)
-                                               (not ~'facet))))
+                                               (not ~'facet)))
+                              [:theme {:legend.position "none"}])
                             (when (or (number? ~'x-rotate) 
                                       (and (= ~'x-rotate :auto)
                                            (nil? (:flip? options#))))
