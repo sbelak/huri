@@ -1,7 +1,7 @@
 (ns huri.core
   (:require [huri.schema :refer :all]
             (plumbing [core :refer [distinct-fast map-vals safe-get for-map
-                                    map-from-vals]]
+                                    map-from-vals indexed]]
                       [map :refer [safe-select-keys]])
             [clj-time.core :as t]
             [net.cgrand.xforms :as x]
@@ -298,11 +298,16 @@
   ([keyfn df]
    (double (/ (count df) (sum (comp / keyfn) df)))))
 
-(def cdf (comp (partial into (sorted-map))
-               (partial reductions (fn [[_ acc] [k v]]
-                                     [k (+ acc v)]))
-               (partial sort-by key)
-               distribution))
+(defn cdf
+  ([df]
+   (let [norm (safe-divide (sum df))]
+     (->> df
+          (sort >)        
+          (reductions +)
+          (map (partial * norm))
+          indexed)))
+  ([keyfn df]
+   (cdf (col keyfn df))))
 
 (defn smooth
   [window xs]
