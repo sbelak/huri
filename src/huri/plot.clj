@@ -355,7 +355,7 @@
                                             (if (sequential? ~'facet)
                                               (->> ~'facet
                                                    (map name)
-                                                   (s/join "%s ~ %s"))
+                                                   (s/join " ~ "))
                                               (str "~" (name ~'facet))))])
                             (when ~'trendline?
                               (if total#
