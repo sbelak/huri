@@ -9,7 +9,7 @@
                  [prismatic/schema "1.1.0"]
                  [org.clojure/math.numeric-tower "0.0.4"]                 
                  [org.clojure/data.priority-map "0.0.7"] 
-                 [net.cgrand/xforms "0.1.0"]                 
+                 [net.cgrand/xforms "0.1.2"]                 
                  [cheshire "5.6.1"]
                  [com.taoensso/timbre "4.3.1"]                 
                  [gorilla-renderable "2.0.0"]])

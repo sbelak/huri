@@ -133,12 +133,14 @@
 
 (defn- sanitize-key
   [k]
-  (when k
-    (-> (if (or (keyword? k) (symbol? k) (string? k))
-          (name k)
-          (str k))
-        (s/replace #"(?:^\d)|\W" (comp (partial str "__") int first))
-        keyword)))
+  (cond
+    (nil? k) nil
+    (sequential? k) (map sanitize-key k)
+    :else (-> (if (or (keyword? k) (symbol? k) (string? k))
+                (name k)
+                (str k))
+              (s/replace #"(?:^\d)|\W" (comp (partial str "__") int first))
+              keyword)))
 
 (defmulti ->r-type class)
 
@@ -281,6 +283,7 @@
                          :colour "#c0392b"
                          :alpha 0.75
                          :legend? :auto
+                         :sort-by nil
                          :share-x? false
                          :trendline? false                         
                          :facet nil
@@ -346,77 +349,81 @@
                                                    (partial map ->r-type))
                                              ~'*df*)]]
               preamble
-              (->> (concat (let [~@(mapcat #(vector % `(sanitize-key ~%))
-                                           (concat positional-params
-                                                   ['group-by 'facet]))] 
-                             ~body)
-                           [(when ~'facet
-                              [:facet_grid (keyword
-                                            (if (sequential? ~'facet)
-                                              (->> ~'facet
-                                                   (map name)
-                                                   (s/join " ~ "))
-                                              (str "~" (name ~'facet))))])
-                            (when ~'trendline?
-                              (if total#
-                                [:geom_smooth [:aes {:y :group__total}]
-                                 {:alpha 0.25
-                                  :colour "black"
-                                  :fill "black"}]
-                                [:geom_smooth {:alpha 0.25
-                                               :colour "black"
-                                               :fill "black"}]))
-                            (when (and ~'share-x? ~'group-by)
-                              [:facet_grid (keyword (format "%s ~ ."
-                                                            (name ~'group-by)))
-                               {:scales "free_y"}])
-                            (case ~'x-scale
-                              :log [:scale_x_log10 {:labels :comma}]
-                              :sqrt [:scale_x_sqrt {:labels :comma}]
-                              :linear [:scale_x_continuous {:labels :comma}]
-                              :percent [:scale_x_continuous {:labels :percent}]
-                              :dates [:scale_x_date
-                                      {:labels [:date_format
-                                                (date-scale-resolution
-                                                 (~'*df* (sanitize-key ~x)))]}]
-                              :categorical nil) 
-                            (case ~'y-scale
-                              :log [:scale_y_log10 {:labels :comma}]
-                              :sqrt [:scale_y_sqrt {:labels :comma}]
-                              :linear [:scale_y_continuous {:labels :comma}]
-                              :percent [:scale_y_continuous {:labels :percent}]
-                              :dates [:scale_y_date
-                                      {:labels [:date_format
-                                                (date-scale-resolution
-                                                 (~'*df* (sanitize-key ~y)))]}]
-                              :categorical nil)
-                            theme 
-                            (when-not (or (true? ~'legend?)
-                                          (and ~'legend?
-                                               ~'group-by
-                                               (not ~'share-x?)
-                                               (not ~'facet)))
-                              [:theme {:legend.position "none"}])
-                            (when (or (number? ~'x-rotate) 
-                                      (and (= ~'x-rotate :auto)
-                                           (nil? (:flip? options#))))
-                              [:theme
-                               {:axis.text.x [:element_text
-                                              {:angle (if (number? ~'x-rotate)
-                                                        ~'x-rotate
-                                                        45)
-                                               :hjust 1}]}])
-                            [:labs {:x (or ~'x-label
-                                           (if (#{:x__auto :y__auto} ~x)
-                                             ""
-                                             (name ~x))) 
-                                    :y (or ~'y-label
-                                           ~(if y
-                                              `(if (not= ~y :y__auto)
-                                                 (name ~y)
-                                                 "")
-                                              ""))
-                                    :title ~'title}]])
+              (->> (let [~@(mapcat #(vector % `(sanitize-key ~%))
+                                   (concat positional-params
+                                           ['group-by 'facet 'sort-by]))]
+                     (concat ~body                              
+                             [(when ~'facet
+                                [:facet_grid (keyword
+                                              (if (sequential? ~'facet)
+                                                (->> ~'facet
+                                                     (map name)
+                                                     (s/join " ~ "))
+                                                (str "~" (name ~'facet))))])
+                              (when ~'trendline?
+                                (if total#
+                                  [:geom_smooth [:aes {:y :group__total}]
+                                   {:alpha 0.25
+                                    :colour "black"
+                                    :fill "black"}]
+                                  [:geom_smooth
+                                   [:aes (if ~'group-by
+                                           {:group ~'group-by}
+                                           {})]
+                                   {:alpha 0.25
+                                    :colour "black"
+                                    :fill "black"}]))
+                              (when (and ~'share-x? ~'group-by)
+                                [:facet_grid (keyword (format "%s ~ ."
+                                                              (name ~'group-by)))
+                                 {:scales "free_y"}])
+                              (case ~'x-scale
+                                :log [:scale_x_log10 {:labels :comma}]
+                                :sqrt [:scale_x_sqrt {:labels :comma}]
+                                :linear [:scale_x_continuous {:labels :comma}]
+                                :percent [:scale_x_continuous {:labels :percent}]
+                                :dates [:scale_x_date
+                                        {:labels [:date_format
+                                                  (date-scale-resolution
+                                                   (~'*df* ~x))]}]
+                                :categorical nil) 
+                              (case ~'y-scale
+                                :log [:scale_y_log10 {:labels :comma}]
+                                :sqrt [:scale_y_sqrt {:labels :comma}]
+                                :linear [:scale_y_continuous {:labels :comma}]
+                                :percent [:scale_y_continuous {:labels :percent}]
+                                :dates [:scale_y_date
+                                        {:labels [:date_format
+                                                  (date-scale-resolution
+                                                   (~'*df* ~y))]}]
+                                :categorical nil)
+                              theme 
+                              (when-not (or (true? ~'legend?)
+                                            (and ~'legend?
+                                                 ~'group-by
+                                                 (not ~'share-x?)
+                                                 (not ~'facet)))
+                                [:theme {:legend.position "none"}])
+                              (when (or (number? ~'x-rotate) 
+                                        (and (= ~'x-rotate :auto)
+                                             (nil? (:flip? options#))))
+                                [:theme
+                                 {:axis.text.x [:element_text
+                                                {:angle (if (number? ~'x-rotate)
+                                                          ~'x-rotate
+                                                          45)
+                                                 :hjust 1}]}])
+                              [:labs {:x (or ~'x-label
+                                             (if (#{:x__auto :y__auto} ~x)
+                                               ""
+                                               (name ~x))) 
+                                      :y (or ~'y-label
+                                             ~(if y
+                                                `(if (not= ~y :y__auto)
+                                                   (name ~y)
+                                                   "")
+                                                ""))
+                                      :title ~'title}]]))
                    (remove nil?)
                    (apply r+))]
              {:width ~'width :height ~'height})))))))
