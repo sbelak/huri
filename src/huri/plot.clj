@@ -343,7 +343,17 @@
                               :date :dates
                               :categorical :categorical
                               :linear)
-                            ~'y-scale)]            
+                            ~'y-scale)
+                ~'x-label (or ~'x-label
+                              (if (#{:x__auto :y__auto} ~x)
+                                ""
+                                (name ~x))) 
+                ~'y-label (or ~'y-label
+                              ~(if y
+                                 `(if (not= ~y :y__auto)
+                                    (name ~y)
+                                    "")
+                                 ""))]            
             (view 
              [[:<- :g [:data.frame (map-vals (comp (partial into [:c])
                                                    (partial map ->r-type))
@@ -413,16 +423,8 @@
                                                           ~'x-rotate
                                                           45)
                                                  :hjust 1}]}])
-                              [:labs {:x (or ~'x-label
-                                             (if (#{:x__auto :y__auto} ~x)
-                                               ""
-                                               (name ~x))) 
-                                      :y (or ~'y-label
-                                             ~(if y
-                                                `(if (not= ~y :y__auto)
-                                                   (name ~y)
-                                                   "")
-                                                ""))
+                              [:labs {:x ~'x-label
+                                      :y ~'y-label
                                       :title ~'title}]]))
                    (remove nil?)
                    (apply r+))]
