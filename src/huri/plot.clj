@@ -2,7 +2,8 @@
 ;;;; https://github.com/JonyEpsilon/gg4clj
 
 (ns huri.plot
-  (:require [huri.core :refer [rollup derive-cols sum col extent]]
+  (:require [huri.core :refer [rollup derive-cols sum col extent cols size
+                               col-oriented]]
             [clojure.string :as s]            
             [plumbing.core :refer [map-vals for-map assoc-when]]
             [clojure.java.shell :as shell]            
@@ -199,6 +200,18 @@
                                   ->col-oriented)
     :else (->col-oriented (map vector (range) df))))
 
+(defn ->col
+  [xs]
+  (into [:c] (map ->r-type xs)))
+
+(defn ->matrix
+  [df]
+  (let [[m n] (size df)]
+    [:matrix (->col (apply concat (vals (col-oriented df))))
+     {:nrow m
+      :ncol n
+      :dimnames [:list :NULL (->col (cols df))]}]))
+
 (defn melt
   [cols value-col group-col df]
   (mapcat (fn [col df]
@@ -228,7 +241,7 @@
                [:library :scales]
                [:library :grid]
                [:library :RColorBrewer]
-               [:library :ggrepel]
+               [:library :ggrepel]               
                [:<- :palette [:brewer.pal "Greys" {:n 9}]]
                {:color.background (keyword "palette[2]")}
                {:color.grid.major (keyword "palette[3]")}
@@ -355,9 +368,7 @@
                                     "")
                                  ""))]            
             (view 
-             [[:<- :g [:data.frame (map-vals (comp (partial into [:c])
-                                                   (partial map ->r-type))
-                                             ~'*df*)]]
+             [[:<- :g [:data.frame (map-vals ->col ~'*df*)]]
               preamble
               (->> (let [~@(mapcat #(vector % `(sanitize-key ~%))
                                    (concat positional-params
@@ -547,4 +558,4 @@
    [:geom_tile]
    [:scale_fill_distiller (or z-label (name z))
     (-> {:palette "RdYlBu"}
-        (assoc-when :limit (some->> extent (apply vector :c))))]])
+        (assoc-when :limit (some->> extent ->col)))]])
