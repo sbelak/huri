@@ -345,6 +345,8 @@
    (extent (col keyfn df))))
 
 (defn clamp
+  ([bounds]
+   (partial clamp bounds))
   ([[lower upper] x]
    (clamp lower upper x))
   ([lower upper x]
@@ -434,3 +436,6 @@
   [f]
   (json/decode-stream (io/reader f) true))
 
+(defn boolean?
+  [x]
+  (instance? java.lang.Boolean x))
