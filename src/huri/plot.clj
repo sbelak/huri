@@ -503,6 +503,7 @@
 (defplot bar-chart x y {:stacked? false 
                         :flip? false
                         :sort-by nil
+                        :show-values? false
                         :x-rotate :auto} 
   [[:ggplot :g [:aes (-> {:x (if (= :dates x-scale)
                                x
@@ -514,6 +515,17 @@
                        (when-not stacked? 
                          {:position "dodge"})
                        {:fill colour}))]
+   (when show-values?
+     [:geom_text [:aes {:label (if (= y-scale :percent)
+                                 [:sprintf "%1.2f%%" (->> y
+                                                          name
+                                                          (format "100*%s")
+                                                          keyword)]
+                                 y)}]
+      {:size 2.5
+       :hjust (if stacked? 0.5 0)
+       :vjust (if stacked? -0.3 0.5)
+       :position (if stacked? "stack" [:position_dodge 1])}])
    (when flip?
      [:coord_flip])])
 
