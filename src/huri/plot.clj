@@ -523,8 +523,8 @@
                                                           keyword)]
                                  y)}]
       {:size 2.5
-       :hjust (if stacked? 0.5 0)
-       :vjust (if stacked? -0.3 0.5)
+       :hjust (if flip? 0 0.5)
+       :vjust (if flip? 0.5 -0.3)
        :position (if stacked? "stack" [:position_dodge 1])}])
    (when flip?
      [:coord_flip])])
