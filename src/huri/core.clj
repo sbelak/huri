@@ -219,8 +219,11 @@
   (map #(safe-select-keys % cols) df))
 
 (defn join
-  [left right [lkey rkey] & {:keys [inner-join?]}]
-  (let [left->right (comp (map-from-vals (->keyfn rkey) right)
+  [left right on & {:keys [inner-join?]}]
+  (let [[lkey rkey] (if (sequential? on)
+                      on
+                      [on on])
+        left->right (comp (map-from-vals (->keyfn rkey) right)
                           (->keyfn lkey))]
     (for [row left
           :when (or (left->right row) (not inner-join?))]
