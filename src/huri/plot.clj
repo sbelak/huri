@@ -524,8 +524,20 @@
                                  y)}]
       {:size 2.5
        :hjust (if flip? 0 0.5)
-       :vjust (if flip? 0.5 -0.3)
-       :position (if stacked? "stack" [:position_dodge 1])}])
+       :vjust (cond
+                flip? 0.5
+                stacked? 1.8
+                :else -0.3)
+       :position (if (and stacked? (not flip?)) "stack" [:position_dodge 1])}])
+   (when (and stacked? show-values?) 
+       [:geom_text [:aes {:label (if (= y-scale :percent)
+                                   [:sprintf "%1.2f%%"
+                                    (keyword "100*group__total")]
+                                   :group__total)
+                          :y :group__total}]
+        {:size 2.5
+         :hjust (if flip? 0 0.5)
+         :vjust (if flip? 0.5 -0.3)}])
    (when flip?
      [:coord_flip])])
 
