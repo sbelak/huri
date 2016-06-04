@@ -523,6 +523,7 @@
                                                           keyword)]
                                  y)}]
       {:size 2.5
+       :color (if (and stacked? (not flip?)) "white" "black")
        :hjust (if flip? 0 0.5)
        :vjust (cond
                 flip? 0.5
