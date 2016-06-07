@@ -355,6 +355,10 @@
   ([lower upper x]
    (max (min x upper) lower)))
 
+(defn nil->0
+  [x]
+  (or x 0))
+
 (defn quarter-of-year
   [dt]
   (ceil (/ (t/month dt) 3)))
