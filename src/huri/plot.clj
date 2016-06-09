@@ -441,6 +441,15 @@
                    (apply r+))]
              {:width ~'width :height ~'height})))))))
 
+(defn format-value
+  [x percent?]
+  (if percent?
+    [:sprintf "%1.2f%%" (->> x
+                             name
+                             (format "100*%s")
+                             keyword)]
+    x))
+
 (defplot histogram x {:bins 20 
                       :bin-width nil 
                       :density? false
@@ -474,7 +483,8 @@
 (defplot line-chart x y {:show-points? :auto
                          :fill? false
                          :alpha 0.5
-                         :size nil}
+                         :size nil
+                         :show-labels? false}
   [[:ggplot :g [:aes (merge {:x x :y y} 
                             (when group-by
                               {:group group-by 
@@ -495,6 +505,13 @@
        (if size
          [:geom_point [:aes {:size size}] aesthetics]
          [:geom_point aesthetics])))
+   (when show-labels?
+     [:geom_label_repel
+      [:aes (-> {:label (format-value y (= y-scale :percent))}
+                (assoc-when :fill (some->> group-by (vector :factor))))]
+      {:size 3.5
+       :color (if group-by "white" "black")
+       :show.legend false}])
    (when fill?
      [:geom_area (merge {:alpha alpha}
                         (when-not group-by
@@ -516,12 +533,7 @@
                          {:position "dodge"})
                        {:fill colour}))]
    (when show-values?
-     [:geom_text [:aes {:label (if (= y-scale :percent)
-                                 [:sprintf "%1.2f%%" (->> y
-                                                          name
-                                                          (format "100*%s")
-                                                          keyword)]
-                                 y)}]
+     [:geom_text [:aes {:label (format-value y (= y-scale :percent))}]
       {:size 2.5
        :color (if (and stacked? (not flip?)) "white" "black")
        :hjust (if flip? 0 0.5)
@@ -531,11 +543,8 @@
                 :else -0.3)
        :position (if (and stacked? (not flip?)) "stack" [:position_dodge 1])}])
    (when (and stacked? show-values?) 
-       [:geom_text [:aes {:label (if (= y-scale :percent)
-                                   [:sprintf "%1.2f%%"
-                                    (keyword "100*group__total")]
-                                   :group__total)
-                          :y :group__total}]
+     [:geom_text [:aes {:label (format-value y (= y-scale :percent))
+                        :y :group__total}]
         {:size 2.5
          :hjust (if flip? 0 0.5)
          :vjust (if flip? 0.5 -0.3)}])
