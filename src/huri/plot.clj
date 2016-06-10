@@ -543,7 +543,7 @@
                 :else -0.3)
        :position (if (and stacked? (not flip?)) "stack" [:position_dodge 1])}])
    (when (and stacked? show-values?) 
-     [:geom_text [:aes {:label (format-value y (= y-scale :percent))
+     [:geom_text [:aes {:label (format-value :group__total (= y-scale :percent))
                         :y :group__total}]
         {:size 2.5
          :hjust (if flip? 0 0.5)
