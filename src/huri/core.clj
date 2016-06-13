@@ -303,12 +303,11 @@
 
 (defn cdf
   ([df]
-   (let [norm (safe-divide (sum df))]
-     (->> df
-          (sort >)        
-          (reductions +)
-          (map (partial * norm))
-          indexed)))
+   (->> df
+        distribution
+        (sort-by key <)     
+        (reductions (fn [[_ acc] [x y]]
+                      [x (+ y acc)]))))
   ([keyfn df]
    (cdf (col keyfn df))))
 
