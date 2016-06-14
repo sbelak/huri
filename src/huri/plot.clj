@@ -556,10 +556,13 @@
                            :size nil}
   [[:ggplot :g [:aes (-> {:x x :y y}
                          (assoc-when :colour group-by)
-                         (assoc-when :size size))]]
-   [:geom_point (merge {:alpha alpha}
-                       (when-not group-by
-                         {:colour colour}))]
+                         )]]
+   [:geom_point [:aes (if size
+                        {:size size}
+                        {})]
+    (merge {:alpha alpha}
+           (when-not group-by
+             {:colour colour}))]
    (when label
      [:geom_label_repel
       [:aes (-> {:label label}
