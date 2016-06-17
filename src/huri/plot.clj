@@ -298,7 +298,8 @@
                          :legend? :auto
                          :sort-by nil
                          :share-x? false
-                         :trendline? false                         
+                         :trendline? false
+                         :smoothing-method nil
                          :facet nil
                          :x-rotate nil
                          :width 9
@@ -382,21 +383,21 @@
                                                      (s/join " ~ "))
                                                 (str "~" (name ~'facet))))])
                               (when ~'trendline?
-                                (if total#
-                                  [:geom_smooth [:aes {:y :group__total}]
-                                   {:alpha 0.25
-                                    :colour "black"
-                                    :fill "black"}]
-                                  [:geom_smooth
-                                   [:aes (if ~'group-by
-                                           {:group ~'group-by}
-                                           {})]
-                                   {:alpha 0.25
-                                    :colour "black"
-                                    :fill "black"}]))
+                                [:geom_smooth
+                                 [:aes (cond
+                                         total# {:y :group__total}
+                                         ~'group-by {:group ~'group-by}
+                                         :else {})]
+                                 (merge {:alpha 0.25
+                                         :colour "black"
+                                         :fill "black"}
+                                        (when ~'smoothing-method
+                                          {:method (name ~'smoothing-method)}))])
                               (when (and ~'share-x? ~'group-by)
-                                [:facet_grid (keyword (format "%s ~ ."
-                                                              (name ~'group-by)))
+                                [:facet_grid (->> ~'group-by
+                                                  name
+                                                  (format "%s ~ .")
+                                                  keyword)
                                  {:scales "free_y"}])
                               (case ~'x-scale
                                 :log [:scale_x_log10 {:labels :comma}]
