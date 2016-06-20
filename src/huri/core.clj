@@ -1,19 +1,16 @@
 (ns huri.core
-  (:require [huri.schema :refer :all]
-            (plumbing [core :refer [distinct-fast map-vals safe-get for-map
+  (:require (plumbing [core :refer [distinct-fast map-vals safe-get for-map
                                     map-from-vals indexed]]
                       [map :refer [safe-select-keys]])
             [clj-time.core :as t]
             [net.cgrand.xforms :as x]
             [clojure.data.priority-map :refer [priority-map-by]]
             [clojure.math.numeric-tower :refer [ceil expt round]]
-            [cheshire.core :as json]
-            [schema.core :as s]
+            [cheshire.core :as json]            
             [clojure.java.io :as io]
-            [clojure.core.reducers :as r])
+            [clojure.core.reducers :as r]
+            [clojure.spec :as s])
   (:import org.joda.time.DateTime))
-
-(s/set-fn-validation! true)
 
 (defn mapply
   ([f]
@@ -25,6 +22,11 @@
   [& for-body]
   `(apply concat (for ~@for-body)))
 
+(defmacro with-conformer
+  [x & tagvals]
+  `(s/conformer (fn [[tag# ~x]]
+                  (case tag# ~@tagvals))))
+
 (defn fsome
   [f]
   (fn [& args]
@@ -35,33 +37,56 @@
   [m]
   (apply map vector m))
 
-(s/defn derrive
-  ([fs]
-   (partial derrive fs))
-  ([fs :- {s/Any IFn} x]
-   (for-map [[k f] fs]
-     k (f x))))
+(defn maybe-seq
+  [element-type]
+  (s/and
+   (s/or :seq (s/+ element-type)
+         :val element-type)
+   (with-conformer x
+     :seq x
+     :val [x])))
 
-(defcoercer ensure-seq (AlwaysSeq s/Any)
-  [x]
-  (if (sequential? x)
-    x
-    [x]))
+(def ensure-seq (partial s/conform (maybe-seq ::s/any)))
 
-(s/defschema Pred IFn)
+(s/def ::keyfn (s/and
+                (s/or :kw keyword?
+                      :fn ifn?)
+                (with-conformer x
+                  :kw #(safe-get % x)
+                  :fn x)))
 
-(s/defschema KeyFn IFn)
+(def ->keyfn (partial s/conform ::keyfn))
 
-(s/defschema KeyCombinator {:combinator IFn
-                            :keyfns [KeyFn]})
+(s/def ::combinator ifn?)
 
-(s/defschema Filters {KeyCombinator Pred})
+(s/def ::keyfns (s/+ ::keyfn))
 
-(defcoercer ->keyfn KeyFn
-  [x]
-  (if (keyword? x)
-    #(safe-get % x)
-    x))
+(s/def ::key-combinator (s/and
+                         (s/or :combinator (s/keys :req [::combinator ::keyfns])
+                               :keyfn ::keyfn)
+                         (with-conformer x
+                           :combinator x
+                           :keyfn {::combinator identity
+                                   ::keyfns [x]})))
+
+(s/def ::pred (s/and
+               (s/or :vec vector?
+                     :fn ifn?
+                     :val (complement ifn?))
+               (with-conformer x
+                 :vec #(apply (first x) % (rest x))
+                 :fn x
+                 :val (partial = x))))
+
+(s/def ::filters (s/and
+                  (s/or :map (s/+ (s/spec (s/cat :key ::key-combinator
+                                                 :pred ::pred)))
+                        :pred (complement map?))
+                  (with-conformer x
+                    :map x
+                    :pred (s/conform ::filters {identity x}))))
+
+(s/def ::dataframe (s/coll-of map? []))
 
 (defn col
   ([k]
@@ -69,61 +94,65 @@
   ([k df]
    (sequence (col k) df)))
 
-(defcoercer ->pred Pred
-  [x]
-  (cond                             
-    (vector? x) #(apply (first x) % (rest x))
-    (ifn? x) x
-    :else (partial = x)))
-
-(defcoercer ->key-combinator KeyCombinator
-  [x]
-  (if (s/check KeyCombinator x)
-    {:combinator identity
-     :keyfns [x]}
-    x))
-
-(defcoercer ->filters Filters
-  [x]
-  (if (map? x)
-    x
-    {identity x}))
-
 (defn any-of
   [& keyfns]
-  {:combinator some-fn
-   :keyfns keyfns})
+  {::combinator some-fn
+   ::keyfns keyfns})
 
 (defn every-of
   [& keyfns]
-  {:combinator every-pred
-   :keyfns keyfns})
+  {::combinator every-pred
+   ::keyfns keyfns})
 
-(s/defn where
-  [filters df :- Coll]
+(s/fdef where
+  :args (s/cat :filters ::filters :df coll?)
+  :ret coll?)
+
+(defn where
+  [filters df]
   (into (empty df)
-    (->> (for [[{:keys [combinator keyfns]} pred] (->filters filters)]
+    (->> (for [{{:keys [::combinator ::keyfns]} :key
+                pred :pred} (s/conform ::filters filters)]
            (apply combinator (map (partial comp pred) keyfns)))
          (apply every-pred)
          filter)
     df))
 
-(s/defn summary
+(s/def ::summary-fn
+  (s/or :map (s/map-of keyword?
+                       (s/or :fn ifn?
+                             :vec (s/cat :f ifn?
+                                         :keyfns (s/? (maybe-seq ::keyfn))
+                                         :filter (s/? ::filters))))
+        :vec (s/cat :f ifn? :keyfns (s/+ ::keyfn))
+        :ifn fn?))
+
+(s/fdef summary
+  :args (s/alt :curried ::summary-fn
+               :fn-map (s/cat :f ::summary-fn :df coll?)
+               :fn (s/cat :f ::summary-fn :keyfn ::keyfn :df coll?))
+  :ret ::s/any)
+
+(defn summary
   ([f]
    (partial summary f))
-  ([f df :- Coll]
-   (->> f
-        (coerce {s/Any (AlwaysSeq (s/one IFn "f")
-                                  (s/optional (AlwaysSeq KeyFn) "keyfn")
-                                  Filters)})
-        (map-vals (fn [[f k filters]]
-                    (summary f (or k identity)
-                             (cond->> df filters (where filters)))))))
+  ([f df]
+   (map-vals (comp (fn [[f k filters]]
+                     (summary f (or k identity)
+                              (cond->> df filters (where filters))))
+                   ensure-seq)
+             f))
   ([f keyfn df]
    (apply f (map #(col % df) (ensure-seq keyfn)))))
 
-(s/defn rollup
-  ([groupfn f df :- Coll]
+(s/fdef rollup
+  :args (s/alt :simple (s/cat :groupfn ::keyfn :f ::summary-fn :df coll?)
+               :keyfn (s/cat :groupfn ::keyfn :f ::summary-fn :keyfn ::keyfn
+                             :df coll?))
+  :ret (s/and map? sorted?))
+
+(defn rollup
+  ([groupfn f df]
    (into (sorted-map) 
      (x/by-key (->keyfn groupfn) (comp (x/into [])
                                        (map (if (map? f)
@@ -136,22 +165,38 @@
 (def rollup-vals (comp vals rollup))
 (def rollup-cat (comp (partial apply concat) rollup-vals))
 
-(s/defn rollup-fuse
+(s/def ::fuse-fn (s/and (s/or :map map?
+                              :kw keyword?
+                              :fn ifn?)
+                        (with-conformer x
+                          :map x
+                          :kw {x x}
+                          :fn {::group x})))
+
+(s/fdef rollup-fuse
+  :args (s/alt :curried (s/cat :groupfn ::fuse-fn :f ::summary-fn)
+               :full (s/cat :groupfn ::fuse-fn :f ::summary-fn :df coll?))
+  :ret coll?)
+
+(defn rollup-fuse
   ([groupfn f]
    (partial rollup-fuse groupfn f))
-  ([groupfn f :- Map df]
-   (let [groupfn (cond
-                   (map? groupfn) groupfn
-                   (keyword? groupfn) {groupfn groupfn}
-                   :else {::group groupfn})]
+  ([groupfn f df]
+   (let [groupfn (s/conform ::fuse-fn groupfn)]
      (rollup-vals (apply juxt (map ->keyfn (vals groupfn)))
                   (merge f (map-vals #(comp % first) groupfn))
                   df))))
 
-(s/defn rollup-transpose
+(s/fdef rollup-transpose
+  :args (s/alt :curried (s/cat :indexfn ::keyfn :f (s/and map? ::summary-fn))
+               :full (s/cat :indexfn ::keyfn :f (s/and map? ::summary-fn)
+                            :df coll?))
+  :ret map?)
+
+(defn rollup-transpose
   ([indexfn f]
    (partial rollup-transpose indexfn f))
-  ([indexfn f :- Map df :- Coll]
+  ([indexfn f df]
    (->> df
         (rollup indexfn f)
         (reduce-kv (fn [acc idx kvs]
@@ -161,21 +206,35 @@
                                 kvs))
                    (map-vals (constantly (sorted-map)) f)))))
 
-(s/defn window
+(s/fdef window
+  :args (s/alt :simple (s/cat :f ifn? :df coll?)
+               :keyfn (s/cat :f ifn? :keyfn ::keyfn :df coll?)
+               :lag (s/cat :lag pos-int? :f ifn? :keyfn ::keyfn :df coll?))
+  :ret coll?)
+
+(defn window
   ([f df]
    (window f identity df))
   ([f keyfn df]
    (window 1 f keyfn df))
-  ([lag :- (s/constrained s/Int pos?) f keyfn df :- Coll]
+  ([lag f keyfn df]
    (let [xs (col keyfn df)]
      (map f (drop lag xs) xs))))
 
-(s/defn size
-  [df :- [Coll]]
+(s/fdef size
+  :args (s/coll-of coll? [])
+  :ret (s/cat :rows int? :cols int?))
+
+(defn size
+  [df]
   [(count df) (count (first df))])
 
-(s/defn cols
-  [df :- [Map]]
+(s/fdef cols
+  :args ::dataframe
+  :ret coll?)
+
+(defn cols
+  [df]
   (keys (first df)))
 
 (defn col-oriented
@@ -187,14 +246,21 @@
   [m]
   (apply map (comp (partial zipmap (keys m)) vector) (vals m)))
 
+(s/def ::col-transforms (s/+ (s/spec (s/cat :ks (maybe-seq keyword?)
+                                            :f ::summary-fn))))
+
+(s/fdef derive-cols
+  :args (s/cat :new-cols ::col-transforms :df ::dataframe)
+  :ret coll?)
+
 (defn derive-cols
   [new-cols df]
   (map (->> new-cols
-            (coerce {(AlwaysSeq s/Keyword) (AlwaysSeq (s/one IFn "f") KeyFn)})
-            (map (fn [[ks [f & cols]]]
-                   (let [f (if cols
-                             (fn [m]
-                               (apply f (map #(% m) cols)))
+            (s/conform ::col-transforms)
+            (map (fn [{ks :ks [tag f] :f}]
+                   (let [f (if (= :vec tag)
+                             (let [{:keys [f keyfns]} f]
+                               (comp (partial apply f) (apply juxt keyfns)))
                              f)]
                      (fn [row]
                        (assoc-in row ks (f row))))))
@@ -247,10 +313,15 @@
             (and (not (zero? numerator)) (empty? denominators)))
     (double (apply / numerator denominators))))
 
-(s/defn sum
+(s/fdef sum
+  :args (s/alt :coll coll?
+               :keyfn (s/cat :keyfn ::keyfn :df coll?))
+  :ret number?)
+
+(defn sum
   ([df]
    (sum identity df))
-  ([keyfn df :- Coll]
+  ([keyfn df]
    (transduce (col keyfn) + df)))
 
 (defn rate
@@ -286,13 +357,20 @@
                (not-empty other) (assoc :other (sum val other))))
            d))))))
 
-(s/defn mean
+(s/fdef mean
+  :args (s/alt :coll coll?
+               :keyfn (s/cat :keyfn ::keyfn :df coll?)
+               :weightfn (s/cat :keyfn ::keyfn :weightfn ::keyfn :df coll?))
+  :ret number?)
+
+(defn mean
   ([df]
    (mean identity df))
-  ([keyfn df :- Coll]
+  ([keyfn df]
    (some->> (transduce (col keyfn) x/avg df) double))
   ([keyfn weightfn df]
-   (let [keyfn (->keyfn keyfn)]
+   (let [keyfn (->keyfn keyfn)
+         weightfn (->keyfn weightfn)]
      (rate #(* (keyfn %) (weightfn %)) weightfn df))))
 
 (defn harmonic-mean
@@ -442,6 +520,4 @@
   [f]
   (json/decode-stream (io/reader f) true))
 
-(defn boolean?
-  [x]
-  (instance? java.lang.Boolean x))
+(s/instrument-ns 'huri.core)
