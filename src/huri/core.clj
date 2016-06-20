@@ -86,7 +86,7 @@
                     :map x
                     :pred (s/conform ::filters {identity x}))))
 
-(s/def ::dataframe (s/coll-of map? []))
+(s/def ::dataframe (s/and coll? (comp map? first)))
 
 (defn col
   ([k]
