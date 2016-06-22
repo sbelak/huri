@@ -229,7 +229,7 @@
   [(count df) (count (first df))])
 
 (s/fdef cols
-  :args ::dataframe
+  :args (s/cat :df ::dataframe)
   :ret coll?)
 
 (defn cols
