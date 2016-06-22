@@ -86,8 +86,12 @@
                     :map x
                     :pred (s/conform ::filters {identity x}))))
 
-(s/def ::dataframe (s/and coll? (s/or :empty empty?
-                                      :coll-of-maps (comp map? first))))
+(defn coll-of
+  [element-type]
+  (s/or :nil nil?
+        :coll (s/and coll? #(some->> % first (s/valid? element-type)))))
+
+(s/def ::dataframe (coll-of map?))
 
 (defn col
   ([k]
@@ -106,8 +110,8 @@
    ::keyfns keyfns})
 
 (s/fdef where
-  :args (s/cat :filters ::filters :df coll?)
-  :ret coll?)
+  :args (s/cat :filters ::filters :df (coll-of ::s/any))
+  :ret (coll-of ::s/any))
 
 (defn where
   [filters df]
@@ -127,8 +131,8 @@
 
 (s/fdef summary
   :args (s/alt :curried ::summary-fn
-               :fn-map (s/cat :f ::summary-fn :df coll?)
-               :fn (s/cat :f ifn? :keyfn ::keyfn :df coll?))
+               :fn-map (s/cat :f ::summary-fn :df (coll-of ::s/any))
+               :fn (s/cat :f ifn? :keyfn ::keyfn :df (coll-of ::s/any)))
   :ret ::s/any)
 
 (defn summary
@@ -146,11 +150,11 @@
 (s/fdef rollup
   :args (s/alt :simple (s/cat :groupfn ::keyfn
                               :f (s/or :summary ::summary-fn :fn fn?)
-                              :df coll?)
+                              :df (coll-of ::s/any))
                :keyfn (s/cat :groupfn ::keyfn
                              :f (s/or :summary ::summary-fn :fn fn?)
                              :keyfn ::keyfn
-                             :df coll?))
+                             :df (coll-of ::s/any)))
   :ret (s/and map? sorted?))
 
 (defn rollup
@@ -178,8 +182,8 @@
 (s/fdef rollup-fuse
   :args (s/alt :curried (s/cat :groupfn ::fuse-fn :f ::summary-fn)
                :full (s/cat :groupfn ::fuse-fn :f ::summary-fn
-                            :df coll?))
-  :ret coll?)
+                            :df (coll-of ::s/any)))
+  :ret (coll-of ::s/any))
 
 (defn rollup-fuse
   ([groupfn f]
@@ -192,7 +196,8 @@
 
 (s/fdef rollup-transpose
   :args (s/alt :curried (s/cat :indexfn ::keyfn :f ::summary-fn)
-               :full (s/cat :indexfn ::keyfn :f ::summary-fn :df coll?))
+               :full (s/cat :indexfn ::keyfn :f ::summary-fn :df
+                            (coll-of ::s/any)))
   :ret map?)
 
 (defn rollup-transpose
@@ -209,10 +214,11 @@
                    (map-vals (constantly (sorted-map)) f)))))
 
 (s/fdef window
-  :args (s/alt :simple (s/cat :f ifn? :df coll?)
-               :keyfn (s/cat :f ifn? :keyfn ::keyfn :df coll?)
-               :lag (s/cat :lag pos-int? :f ifn? :keyfn ::keyfn :df coll?))
-  :ret coll?)
+  :args (s/alt :simple (s/cat :f ifn? :df (coll-of ::s/any))
+               :keyfn (s/cat :f ifn? :keyfn ::keyfn :df (coll-of ::s/any))
+               :lag (s/cat :lag pos-int? :f ifn? :keyfn ::keyfn :df
+                           (coll-of ::s/any)))
+  :ret (coll-of ::s/any))
 
 (defn window
   ([f df]
@@ -224,7 +230,7 @@
      (map f (drop lag xs) xs))))
 
 (s/fdef size
-  :args (s/coll-of coll? [])
+  :args (coll-of coll?)
   :ret (s/cat :rows int? :cols int?))
 
 (defn size
@@ -268,7 +274,7 @@
                              f)]
                      (fn [row]
                        (assoc-in row ks (f row))))))
-        (apply comp))
+            (apply comp))
        df))
 
 (defn update-cols
@@ -318,8 +324,8 @@
     (double (apply / numerator denominators))))
 
 (s/fdef sum
-  :args (s/alt :coll coll?
-               :keyfn (s/cat :keyfn ::keyfn :df coll?))
+  :args (s/alt :coll (coll-of ::s/any)
+               :keyfn (s/cat :keyfn ::keyfn :df (coll-of ::s/any)))
   :ret number?)
 
 (defn sum
@@ -362,9 +368,10 @@
            d))))))
 
 (s/fdef mean
-  :args (s/alt :coll coll?
-               :keyfn (s/cat :keyfn ::keyfn :df coll?)
-               :weightfn (s/cat :keyfn ::keyfn :weightfn ::keyfn :df coll?))
+  :args (s/alt :coll (coll-of ::s/any)
+               :keyfn (s/cat :keyfn ::keyfn :df (coll-of ::s/any))
+               :weightfn (s/cat :keyfn ::keyfn :weightfn ::keyfn
+                                :df (coll-of ::s/any)))
   :ret number?)
 
 (defn mean
