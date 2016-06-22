@@ -89,7 +89,10 @@
 (defn coll-of
   [element-type]
   (s/or :nil nil?
-        :coll (s/and coll? #(some->> % first (s/valid? element-type)))))
+        :coll (s/and coll?
+                     (s/or :empty empty?
+                           :non-empty (comp (partial s/valid? element-type)
+                                            first)))))
 
 (s/def ::dataframe (coll-of map?))
 
