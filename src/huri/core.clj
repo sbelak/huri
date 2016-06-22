@@ -144,10 +144,13 @@
    (apply f (map #(col % df) (ensure-seq keyfn)))))
 
 (s/fdef rollup
-  :args (s/alt :simple (s/cat :groupfn ::keyfn :f (s/or ::summary-fn fn?)
+  :args (s/alt :simple (s/cat :groupfn ::keyfn
+                              :f (s/or :summary ::summary-fn :fn fn?)
                               :df coll?)
-               :keyfn (s/cat :groupfn ::keyfn :f (s/or ::summary-fn fn?)
-                             :keyfn ::keyfn :df coll?))
+               :keyfn (s/cat :groupfn ::keyfn
+                             :f (s/or :summary ::summary-fn :fn fn?)
+                             :keyfn ::keyfn
+                             :df coll?))
   :ret (s/and map? sorted?))
 
 (defn rollup
