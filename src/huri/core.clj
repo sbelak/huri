@@ -246,9 +246,9 @@
   (apply map (comp (partial zipmap (keys m)) vector) (vals m)))
 
 (s/def ::col-transforms
-  (s/+ (s/spec (s/cat :ks (maybe-seq keyword?)
-                      :f (s/or :vec (s/cat :f fn? :keyfns (s/+ ::keyfn))
-                               :ifn ifn?)))))
+  (s/spec (s/+ (s/spec (s/cat :ks (maybe-seq keyword?)
+                              :f (s/or :vec (s/cat :f fn? :keyfns (s/+ ::keyfn))
+                                       :ifn ifn?))))))
 
 (s/fdef derive-cols
   :args (s/cat :new-cols ::col-transforms :df ::dataframe)
