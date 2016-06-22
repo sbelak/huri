@@ -74,7 +74,7 @@
                      :fn ifn?
                      :val (complement ifn?))
                (with-conformer x
-                 :vec #(apply (first x) % (rest x))
+                 :vec #(apply (:f x) % (:args x))
                  :fn x
                  :val (partial = x))))
 
