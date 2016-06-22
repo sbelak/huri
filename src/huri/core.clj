@@ -40,7 +40,7 @@
 (defn maybe-seq
   [element-type]
   (s/and
-   (s/or :seq (s/+ element-type)
+   (s/or :seq (s/spec (s/* element-type))
          :val element-type)
    (with-conformer x
      :seq x
@@ -57,7 +57,7 @@
 
 (def ->keyfn (partial s/conform ::keyfn))
 
-(s/def ::combinator ifn?)
+(s/def ::combinator fn?)
 
 (s/def ::keyfns (s/+ ::keyfn))
 
@@ -70,7 +70,7 @@
                                    ::keyfns [x]})))
 
 (s/def ::pred (s/and
-               (s/or :vec vector?
+               (s/or :vec (s/cat :f ifn? :args (s/* ::s/any))
                      :fn ifn?
                      :val (complement ifn?))
                (with-conformer x
@@ -120,18 +120,15 @@
     df))
 
 (s/def ::summary-fn
-  (s/or :map (s/map-of keyword?
-                       (s/or :fn ifn?
-                             :vec (s/cat :f ifn?
-                                         :keyfns (s/? (maybe-seq ::keyfn))
-                                         :filter (s/? ::filters))))
-        :vec (s/cat :f ifn? :keyfns (s/+ ::keyfn))
-        :ifn fn?))
+  (s/map-of keyword? (s/or :vec (s/cat :f ifn?
+                                       :keyfns (maybe-seq ::keyfn)
+                                       :filter (s/? ::filters))
+                           :fn fn?)))
 
 (s/fdef summary
   :args (s/alt :curried ::summary-fn
                :fn-map (s/cat :f ::summary-fn :df coll?)
-               :fn (s/cat :f ::summary-fn :keyfn ::keyfn :df coll?))
+               :fn (s/cat :f ifn? :keyfn ::keyfn :df coll?))
   :ret ::s/any)
 
 (defn summary
@@ -147,9 +144,10 @@
    (apply f (map #(col % df) (ensure-seq keyfn)))))
 
 (s/fdef rollup
-  :args (s/alt :simple (s/cat :groupfn ::keyfn :f ::summary-fn :df coll?)
-               :keyfn (s/cat :groupfn ::keyfn :f ::summary-fn :keyfn ::keyfn
-                             :df coll?))
+  :args (s/alt :simple (s/cat :groupfn ::keyfn :f (s/or ::summary-fn fn?)
+                              :df coll?)
+               :keyfn (s/cat :groupfn ::keyfn :f (s/or ::summary-fn fn?)
+                             :keyfn ::keyfn :df coll?))
   :ret (s/and map? sorted?))
 
 (defn rollup
@@ -176,7 +174,8 @@
 
 (s/fdef rollup-fuse
   :args (s/alt :curried (s/cat :groupfn ::fuse-fn :f ::summary-fn)
-               :full (s/cat :groupfn ::fuse-fn :f ::summary-fn :df coll?))
+               :full (s/cat :groupfn ::fuse-fn :f ::summary-fn
+                            :df coll?))
   :ret coll?)
 
 (defn rollup-fuse
@@ -189,9 +188,8 @@
                   df))))
 
 (s/fdef rollup-transpose
-  :args (s/alt :curried (s/cat :indexfn ::keyfn :f (s/and map? ::summary-fn))
-               :full (s/cat :indexfn ::keyfn :f (s/and map? ::summary-fn)
-                            :df coll?))
+  :args (s/alt :curried (s/cat :indexfn ::keyfn :f ::summary-fn)
+               :full (s/cat :indexfn ::keyfn :f ::summary-fn :df coll?))
   :ret map?)
 
 (defn rollup-transpose
@@ -247,8 +245,10 @@
   [m]
   (apply map (comp (partial zipmap (keys m)) vector) (vals m)))
 
-(s/def ::col-transforms (s/+ (s/spec (s/cat :ks (maybe-seq keyword?)
-                                            :f ::summary-fn))))
+(s/def ::col-transforms
+  (s/+ (s/spec (s/cat :ks (maybe-seq keyword?)
+                      :f (s/or :vec (s/cat :f fn? :keyfns (s/+ ::keyfn))
+                               :ifn ifn?)))))
 
 (s/fdef derive-cols
   :args (s/cat :new-cols ::col-transforms :df ::dataframe)
@@ -265,7 +265,7 @@
                              f)]
                      (fn [row]
                        (assoc-in row ks (f row))))))
-            (apply comp))
+        (apply comp))
        df))
 
 (defn update-cols
