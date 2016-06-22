@@ -37,7 +37,7 @@
   [m]
   (apply map vector m))
 
-(defn maybe-seq
+(defn val-or-seq
   [element-type]
   (s/and
    (s/or :seq (s/spec (s/* element-type))
@@ -46,7 +46,7 @@
      :seq x
      :val [x])))
 
-(def ensure-seq (partial s/conform (maybe-seq ::s/any)))
+(def ensure-seq (partial s/conform (val-or-seq ::s/any)))
 
 (s/def ::keyfn (s/and
                 (s/or :kw keyword?
@@ -128,14 +128,15 @@
 
 (s/def ::summary-fn
   (s/map-of keyword? (s/or :vec (s/cat :f ifn?
-                                       :keyfns (maybe-seq ::keyfn)
+                                       :keyfns (val-or-seq ::keyfn)
                                        :filter (s/? ::filters))
                            :fn fn?)))
 
 (s/fdef summary
   :args (s/alt :curried ::summary-fn
                :fn-map (s/cat :f ::summary-fn :df (coll-of ::s/any))
-               :fn (s/cat :f ifn? :keyfn ::keyfn :df (coll-of ::s/any)))
+               :fn (s/cat :f ifn? :keyfn (val-or-seq ::keyfn)
+                          :df (coll-of ::s/any)))
   :ret ::s/any)
 
 (defn summary
@@ -199,8 +200,8 @@
 
 (s/fdef rollup-transpose
   :args (s/alt :curried (s/cat :indexfn ::keyfn :f ::summary-fn)
-               :full (s/cat :indexfn ::keyfn :f ::summary-fn :df
-                            (coll-of ::s/any)))
+               :full (s/cat :indexfn ::keyfn :f ::summary-fn
+                            :df (coll-of ::s/any)))
   :ret map?)
 
 (defn rollup-transpose
@@ -219,8 +220,8 @@
 (s/fdef window
   :args (s/alt :simple (s/cat :f ifn? :df (coll-of ::s/any))
                :keyfn (s/cat :f ifn? :keyfn ::keyfn :df (coll-of ::s/any))
-               :lag (s/cat :lag pos-int? :f ifn? :keyfn ::keyfn :df
-                           (coll-of ::s/any)))
+               :lag (s/cat :lag pos-int? :f ifn? :keyfn ::keyfn
+                           :df (coll-of ::s/any)))
   :ret (coll-of ::s/any))
 
 (defn window
@@ -258,7 +259,7 @@
   (apply map (comp (partial zipmap (keys m)) vector) (vals m)))
 
 (s/def ::col-transforms
-  (s/spec (s/+ (s/spec (s/cat :ks (maybe-seq keyword?)
+  (s/spec (s/+ (s/spec (s/cat :ks (val-or-seq keyword?)
                               :f (s/or :vec (s/cat :f fn? :keyfns (s/+ ::keyfn))
                                        :ifn ifn?))))))
 

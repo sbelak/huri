@@ -198,7 +198,7 @@
     (sequential? (first df)) (->> df
                                   (map (partial zipmap [:x__auto :y__auto]))
                                   ->col-oriented)
-    :else (->col-oriented (map vector (range) df))))
+    (not-empty df) (->col-oriented (map vector (range) df))))
 
 (defn ->col
   [xs]
