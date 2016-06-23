@@ -264,20 +264,20 @@
    [:theme {:legend.background [:element_rect {:fill :color.background}]}]
    [:theme {:legend.key [:element_rect {:fill :color.background 
                                         :color :color.background}]}]
-   [:theme {:legend.text [:element_text {:size 7
+   [:theme {:legend.text [:element_text {:size 6
                                          :color :color.axis.title}]}]
    [:theme {:legend.title [:element_blank]}]
    [:theme {:plot.title [:element_text {:size 10
                                         :color :color.title 
                                         :vjust 1.25}]}]
-   [:theme {:axis.text.x [:element_text {:size 7
+   [:theme {:axis.text.x [:element_text {:size 6
                                          :color :color.axis.text}]}]
-   [:theme {:axis.text.y [:element_text {:size 7
+   [:theme {:axis.text.y [:element_text {:size 6
                                          :color :color.axis.text}]}]
-   [:theme {:axis.title.x [:element_text {:size 8 
+   [:theme {:axis.title.x [:element_text {:size 7 
                                           :color :color.axis.title 
                                           :vjust 0}]}]
-   [:theme {:axis.title.y [:element_text {:size 8 
+   [:theme {:axis.title.y [:element_text {:size 7 
                                           :color :color.axis.title 
                                           :vjust 1.25}]}]
    [:theme {:plot.margin [:unit [:c 0.35 0.2 0.3 0.35] "cm"]}]))
@@ -510,7 +510,7 @@
      [:geom_label_repel
       [:aes (-> {:label (format-value y (= y-scale :percent))}
                 (assoc-when :fill (some->> group-by (vector :factor))))]
-      {:size 3.5
+      {:size 2.5
        :color (if group-by "white" "black")
        :show.legend false}])
    (when fill?
@@ -535,7 +535,7 @@
                        {:fill colour}))]
    (when show-values?
      [:geom_text [:aes {:label (format-value y (= y-scale :percent))}]
-      {:size 2.5
+      {:size 2
        :color (if (and stacked? (not flip?)) "white" "black")
        :hjust (if flip? 0 0.5)
        :vjust (cond
@@ -546,7 +546,7 @@
    (when (and stacked? show-values?) 
      [:geom_text [:aes {:label (format-value :group__total (= y-scale :percent))
                         :y :group__total}]
-        {:size 2.5
+        {:size 2
          :hjust (if flip? 0 0.5)
          :vjust (if flip? 0.5 -0.3)}])
    (when flip?
@@ -568,7 +568,7 @@
      [:geom_label_repel
       [:aes (-> {:label label}
                 (assoc-when :color (some->> group-by (vector :factor))))]
-      {:size 3.5
+      {:size 2.5
        :show.legend false}])])
 
 (defplot box-plot x y {:legend? false}
