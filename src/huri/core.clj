@@ -173,6 +173,7 @@
    (rollup groupfn (comp f (partial col keyfn)) df)))
 
 (def rollup-vals (comp vals rollup))
+(def rollup-keep (comp (partial remove nil?) rollup-vals))
 (def rollup-cat (comp (partial apply concat) rollup-vals))
 
 (s/def ::fuse-fn (s/and (s/or :map map?
