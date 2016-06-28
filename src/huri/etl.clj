@@ -61,5 +61,6 @@
         (if (or (t/after? (t/now) (first @schedule)) (= @cache ::empty))
           (do
             (swap! schedule (partial drop-while (partial t/after? (t/now))))
+            (reset! cache nil)
             (reset! cache (f)))
           @cache)))))
