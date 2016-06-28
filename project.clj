@@ -9,6 +9,6 @@
                  [org.clojure/math.numeric-tower "0.0.4"]                 
                  [org.clojure/data.priority-map "0.0.7"] 
                  [net.cgrand/xforms "0.3.0"]                 
-                 [cheshire "5.6.2"]
+                 [cheshire "5.6.3"]
                  [com.taoensso/timbre "4.5.0"]                 
                  [gorilla-renderable "2.0.0"]])
