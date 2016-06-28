@@ -189,6 +189,15 @@
   [x]
   [:as.Date (str x)])
 
+(defn r-template
+  [template & params]
+  (->> params
+       (map #(if (keyword? %)
+               (name %)
+               %))
+       (apply format template)
+       keyword))
+
 (defn- ->col-oriented
   [df]
   (cond
@@ -327,7 +336,8 @@
            (melt ~(last positional-params) :y__auto :series__auto df#))          
           (let [{:keys ~(mapv #(symbol (subs (str %) 1)) (keys defaults))
                  :as options#} (merge ~defaults options#)
-                total# (when (and ~'trendline? (:stacked? options#))
+                total# (when (and (:stacked? options#)
+                                  (or ~'trendline? (:show-values? options#)))
                          (comp (rollup ~(first positional-params) sum
                                        ~(second positional-params)
                                        df#)
@@ -394,10 +404,7 @@
                                         (when ~'smoothing-method
                                           {:method (name ~'smoothing-method)}))])
                               (when (and ~'share-x? ~'group-by)
-                                [:facet_grid (->> ~'group-by
-                                                  name
-                                                  (format "%s ~ .")
-                                                  keyword)
+                                [:facet_grid (r-template "%s ~ ." ~'group-by)
                                  {:scales "free_y"}])
                               (case ~'x-scale
                                 :log [:scale_x_log10 {:labels :comma}]
@@ -445,10 +452,7 @@
 (defn format-value
   [x percent?]
   (if percent?
-    [:sprintf "%1.2f%%" (->> x
-                             name
-                             (format "100*%s")
-                             keyword)]
+    [:sprintf "%1.2f%%" (r-template "100*%s" x)]
     x))
 
 (defplot histogram x {:bins 20 
@@ -534,21 +538,35 @@
                          {:position "dodge"})
                        {:fill colour}))]
    (when show-values?
-     [:geom_text [:aes {:label (format-value y (= y-scale :percent))}]
+     [:geom_text [:aes {:label (format-value y (= y-scale :percent))
+                        :hjust (cond
+                                 (and flip? stacked?)
+                                 [:ifelse (r-template "%s >= 0" y) 1.3 -0.3]
+                                 
+                                 flip?
+                                 [:ifelse (r-template "%s >= 0" y) -0.3 1.3]
+                                 
+                                 :else 0.5)
+                        :vjust (cond
+                                 flip? 0.5
+                                 stacked? [:ifelse (r-template "%s >= 0" y)
+                                           1.8 -0.5]
+                                 :else [:ifelse (r-template "%s >= 0" y)
+                                        -0.3 1.3])}]
       {:size 2
-       :color (if (and stacked? (not flip?)) "white" "black")
-       :hjust (if flip? 0 0.5)
-       :vjust (cond
-                flip? 0.5
-                stacked? 1.8
-                :else -0.3)
-       :position (if (and stacked? (not flip?)) "stack" [:position_dodge 1])}])
+       :color (if stacked? "white" "black")
+       :position (if (and (not stacked?) flip?) [:position_dodge 1] "stack")}])
    (when (and stacked? show-values?) 
      [:geom_text [:aes {:label (format-value :group__total (= y-scale :percent))
-                        :y :group__total}]
-        {:size 2
-         :hjust (if flip? 0 0.5)
-         :vjust (if flip? 0.5 -0.3)}])
+                        :y :group__total
+                        :hjust (if flip?
+                                 [:ifelse (r-template "%s >= 0" y) -0.3 1.3]
+                                 0.5)
+                        :vjust (if flip?
+                                 0.5
+                                 [:ifelse (r-template "%s >= 0" :group__total)
+                                         -0.3 1.3])}]
+      {:size 2}])
    (when flip?
      [:coord_flip])])
 
