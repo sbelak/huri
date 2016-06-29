@@ -9,7 +9,8 @@
             [cheshire.core :as json]            
             [clojure.java.io :as io]
             [clojure.core.reducers :as r]
-            [clojure.spec :as s])
+            [clojure.spec :as s]
+            [clojure.spec.test :as s.test])
   (:import org.joda.time.DateTime))
 
 (defn mapply
@@ -40,7 +41,7 @@
 (defn val-or-seq
   [element-type]
   (s/and
-   (s/or :seq (s/spec (s/* element-type))
+   (s/or :seq (s/coll-of element-type)
          :val element-type)
    (with-conformer x
      :seq x
@@ -79,22 +80,14 @@
                  :val (partial = x))))
 
 (s/def ::filters (s/and
-                  (s/or :map (s/+ (s/spec (s/cat :key ::key-combinator
-                                                 :pred ::pred)))
+                  (s/or :map (s/map-of ::key-combinator ::pred
+                                       :conform-keys true)
                         :pred (complement map?))
                   (with-conformer x
                     :map x
                     :pred (s/conform ::filters {identity x}))))
 
-(defn coll-of
-  [element-type]
-  (s/or :nil nil?
-        :coll (s/and coll?
-                     (s/or :empty empty?
-                           :non-empty (comp (partial s/valid? element-type)
-                                            first)))))
-
-(s/def ::dataframe (coll-of map?))
+(s/def ::dataframe (s/nilable (s/every map?)))
 
 (defn col
   ([k]
@@ -113,14 +106,14 @@
    ::keyfns keyfns})
 
 (s/fdef where
-  :args (s/cat :filters ::filters :df (coll-of ::s/any))
-  :ret (coll-of ::s/any))
+  :args (s/cat :filters ::filters :df (s/nilable coll?))
+  :ret coll?)
 
 (defn where
   [filters df]
   (into (empty df)
-    (->> (for [{{:keys [::combinator ::keyfns]} :key
-                pred :pred} (s/conform ::filters filters)]
+    (->> (for [[{:keys [::combinator ::keyfns]} pred]
+               (s/conform ::filters filters)]
            (apply combinator (map (partial comp pred) keyfns)))
          (apply every-pred)
          filter)
@@ -134,9 +127,9 @@
 
 (s/fdef summary
   :args (s/alt :curried ::summary-fn
-               :fn-map (s/cat :f ::summary-fn :df (coll-of ::s/any))
+               :fn-map (s/cat :f ::summary-fn :df (s/nilable coll?))
                :fn (s/cat :f ifn? :keyfn (val-or-seq ::keyfn)
-                          :df (coll-of ::s/any)))
+                          :df (s/nilable coll?)))
   :ret ::s/any)
 
 (defn summary
@@ -154,11 +147,11 @@
 (s/fdef rollup
   :args (s/alt :simple (s/cat :groupfn ::keyfn
                               :f (s/or :summary ::summary-fn :fn fn?)
-                              :df (coll-of ::s/any))
+                              :df (s/nilable coll?))
                :keyfn (s/cat :groupfn ::keyfn
                              :f (s/or :summary ::summary-fn :fn fn?)
                              :keyfn ::keyfn
-                             :df (coll-of ::s/any)))
+                             :df (s/nilable coll?)))
   :ret (s/and map? sorted?))
 
 (defn rollup
@@ -187,8 +180,8 @@
 (s/fdef rollup-fuse
   :args (s/alt :curried (s/cat :groupfn ::fuse-fn :f ::summary-fn)
                :full (s/cat :groupfn ::fuse-fn :f ::summary-fn
-                            :df (coll-of ::s/any)))
-  :ret (coll-of ::s/any))
+                            :df (s/nilable coll?)))
+  :ret coll?)
 
 (defn rollup-fuse
   ([groupfn f]
@@ -202,7 +195,7 @@
 (s/fdef rollup-transpose
   :args (s/alt :curried (s/cat :indexfn ::keyfn :f ::summary-fn)
                :full (s/cat :indexfn ::keyfn :f ::summary-fn
-                            :df (coll-of ::s/any)))
+                            :df (s/nilable coll?)))
   :ret map?)
 
 (defn rollup-transpose
@@ -219,11 +212,11 @@
                    (map-vals (constantly (sorted-map)) f)))))
 
 (s/fdef window
-  :args (s/alt :simple (s/cat :f ifn? :df (coll-of ::s/any))
-               :keyfn (s/cat :f ifn? :keyfn ::keyfn :df (coll-of ::s/any))
+  :args (s/alt :simple (s/cat :f ifn? :df (s/nilable coll?))
+               :keyfn (s/cat :f ifn? :keyfn ::keyfn :df (s/nilable coll?))
                :lag (s/cat :lag pos-int? :f ifn? :keyfn ::keyfn
-                           :df (coll-of ::s/any)))
-  :ret (coll-of ::s/any))
+                           :df (s/nilable coll?)))
+  :ret coll?)
 
 (defn window
   ([f df]
@@ -235,7 +228,7 @@
      (map f (drop lag xs) xs))))
 
 (s/fdef size
-  :args (coll-of coll?)
+  :args (s/every coll?)
   :ret (s/cat :rows int? :cols int?))
 
 (defn size
@@ -260,9 +253,10 @@
   (apply map (comp (partial zipmap (keys m)) vector) (vals m)))
 
 (s/def ::col-transforms
-  (s/spec (s/+ (s/spec (s/cat :ks (val-or-seq keyword?)
-                              :f (s/or :vec (s/cat :f fn? :keyfns (s/+ ::keyfn))
-                                       :ifn ifn?))))))
+  (s/map-of (val-or-seq keyword?)
+            (s/or :vec (s/cat :f fn? :keyfns (s/+ ::keyfn))
+                  :ifn ifn?)
+            :conform-keys true))
 
 (s/fdef derive-cols
   :args (s/cat :new-cols ::col-transforms :df ::dataframe)
@@ -272,7 +266,7 @@
   [new-cols df]
   (map (->> new-cols
             (s/conform ::col-transforms)
-            (map (fn [{ks :ks [tag f] :f}]
+            (map (fn [[ks [tag f]]]
                    (let [f (if (= :vec tag)
                              (let [{:keys [f keyfns]} f]
                                (comp (partial apply f) (apply juxt keyfns)))
@@ -329,8 +323,8 @@
     (double (apply / numerator denominators))))
 
 (s/fdef sum
-  :args (s/alt :coll (coll-of ::s/any)
-               :keyfn (s/cat :keyfn ::keyfn :df (coll-of ::s/any)))
+  :args (s/alt :coll (s/nilable coll?)
+               :keyfn (s/cat :keyfn ::keyfn :df (s/nilable coll?)))
   :ret number?)
 
 (defn sum
@@ -373,10 +367,10 @@
            d))))))
 
 (s/fdef mean
-  :args (s/alt :coll (coll-of ::s/any)
-               :keyfn (s/cat :keyfn ::keyfn :df (coll-of ::s/any))
+  :args (s/alt :coll (s/nilable coll?)
+               :keyfn (s/cat :keyfn ::keyfn :df (s/nilable coll?))
                :weightfn (s/cat :keyfn ::keyfn :weightfn ::keyfn
-                                :df (coll-of ::s/any)))
+                                :df (s/nilable coll?)))
   :ret number?)
 
 (defn mean
@@ -536,4 +530,4 @@
   [f]
   (json/decode-stream (io/reader f) true))
 
-(s/instrument-ns 'huri.core)
+(s.test/instrument)
