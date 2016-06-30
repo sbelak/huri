@@ -71,7 +71,7 @@
                                    ::keyfns [x]})))
 
 (s/def ::pred (s/and
-               (s/or :vec (s/cat :f ifn? :args (s/* ::s/any))
+               (s/or :vec (s/and sequential? (s/cat :f ifn? :args (s/* ::s/any)))
                      :fn ifn?
                      :val (complement ifn?))
                (with-conformer x
