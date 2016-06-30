@@ -71,7 +71,7 @@
                                    ::keyfns [x]})))
 
 (s/def ::pred (s/and
-               (s/or :vec (s/and sequential? (s/cat :f ifn? :args (s/* ::s/any)))
+               (s/or :vec (s/and vector? (s/cat :f ifn? :args (s/* ::s/any)))
                      :fn ifn?
                      :val (complement ifn?))
                (with-conformer x
@@ -254,7 +254,7 @@
 
 (s/def ::col-transforms
   (s/map-of (val-or-seq keyword?)
-            (s/or :vec (s/cat :f fn? :keyfns (s/+ ::keyfn))
+            (s/or :vec (s/and vector? (s/cat :f fn? :keyfns (s/+ ::keyfn)))
                   :ifn ifn?)
             :conform-keys true))
 
