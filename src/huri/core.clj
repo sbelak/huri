@@ -254,7 +254,7 @@
 
 (s/def ::col-transforms
   (s/map-of (val-or-seq keyword?)
-            (s/or :vec (s/and vector? (s/cat :f fn? :keyfns (s/+ ::keyfn)))
+            (s/or :vec (s/and vector? (s/cat :f ifn? :keyfns (s/+ ::keyfn)))
                   :ifn ifn?)
             :conform-keys true))
 
