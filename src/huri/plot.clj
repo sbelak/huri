@@ -429,7 +429,8 @@
                               theme 
                               (when-not (or (true? ~'legend?)
                                             (and ~'legend?
-                                                 ~'group-by
+                                                 (or ~'group-by
+                                                     (:size options#))
                                                  (not ~'share-x?)
                                                  (not ~'facet)))
                                 [:theme {:legend.position "none"}])
