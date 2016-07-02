@@ -480,19 +480,11 @@
                    (first that)
                    (apply t/date-time that))))
 
-(defn since?
-  [this p]
-  (after? this (t/minus (t/now) p)))
-
 (defn before?
   [this & that]
   (t/before? this (if (instance? org.joda.time.DateTime (first that))
                     (first that)
                     (apply t/date-time that))))
-
-(defn between?
-  [this start end]
-  (t/within? (t/interval start end) this))
 
 (defn before-now?
   [dt]
@@ -505,18 +497,23 @@
 (def not-before? (complement before?))
 (def not-after? (complement after?))
 
+(defn between?
+  [this start end]
+  (t/within? (t/interval start end) this))
+
 (defn in?
   ([dt y]
    (= (t/year dt) y))
   ([dt y m]
    (= (year-month dt) (t/date-time y m))))
 
-(defn in-last?
-  [dt p]
-  (not-before? dt (t/minus (if (= (class p) org.joda.time.Years)
-                             (year-month (t/now))
-                             (date (t/now)))
-                           p)))
+(defn since?
+  [this p]
+  (not-before? this (t/minus (if (#{org.joda.time.Years org.yoda.time.Months}
+                                  (class p))
+                               (year-month (t/now))
+                               (date (t/now)))
+                             p)))
 
 (defn spit-json
   ([f x]
