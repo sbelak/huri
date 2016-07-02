@@ -509,7 +509,7 @@
 
 (defn since?
   [this p]
-  (not-before? this (t/minus (if (#{org.joda.time.Years org.yoda.time.Months}
+  (not-before? this (t/minus (if (#{org.joda.time.Years org.joda.time.Months}
                                   (class p))
                                (year-month (t/now))
                                (date (t/now)))
