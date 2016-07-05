@@ -318,7 +318,7 @@
 
 (defn safe-divide
   [numerator & denominators]
-  (when (or (and (seq denominators) (not-any? zero? denominators))
+  (when (or (and (not-empty denominators) (not-any? zero? denominators))
             (and (not (zero? numerator)) (empty? denominators)))
     (double (apply / numerator denominators))))
 
@@ -415,6 +415,10 @@
 (defn decay
   [lambda t]
   (expt Math/E (- (* lambda t))))
+
+(defn logistic
+  [L k x0 x]
+  (/ L (+ 1 (decay k (- x x0)))))
 
 (defn round-to
   [precision x]
