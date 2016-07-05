@@ -112,18 +112,23 @@
 (defn where
   [filters df]
   (into (empty df)
-    (->> (for [[{:keys [::combinator ::keyfns]} pred]
-               (s/conform ::filters filters)]
-           (apply combinator (map (partial comp pred) keyfns)))
+    (->> filters
+         (s/conform ::filters)
+         (map (fn [[{:keys [::combinator ::keyfns]} pred]]
+                (apply combinator (map (partial comp pred) keyfns))))
          (apply every-pred)
          filter)
     df))
 
 (s/def ::summary-fn
-  (s/map-of keyword? (s/or :vec (s/cat :f ifn?
-                                       :keyfns (val-or-seq ::keyfn)
-                                       :filter (s/? ::filters))
-                           :fn fn?)))
+  (s/map-of keyword? (s/and
+                      (s/or :vec (s/cat :f ifn?
+                                        :keyfns (val-or-seq ::keyfn)
+                                        :filter (s/? ::filters))
+                            :fn fn?)
+                      (with-conformer x
+                        :vec x
+                        :fn [x identity]))))
 
 (s/fdef summary
   :args (s/alt :curried ::summary-fn
@@ -136,11 +141,10 @@
   ([f]
    (partial summary f))
   ([f df]
-   (map-vals (comp (fn [[f k filters]]
-                     (summary f (or k identity)
-                              (cond->> df filters (where filters))))
-                   ensure-seq)
-             f))
+   (->> f
+        (s/conform ::summary-fn)
+        (map-vals (fn [[f keyfn filters]]
+                    (summary f keyfn (cond->> df filters (where filters)))))))
   ([f keyfn df]
    (apply f (map #(col % df) (ensure-seq keyfn)))))
 
@@ -267,7 +271,7 @@
   (map (->> new-cols
             (s/conform ::col-transforms)
             (map (fn [[ks [tag f]]]
-                   (let [f (if (= :vec tag)
+                   (let [f (if (= tag :vec)
                              (let [{:keys [f keyfns]} f]
                                (comp (partial apply f) (apply juxt keyfns)))
                              f)]
@@ -293,13 +297,22 @@
   [cols df]
   (map #(safe-select-keys % cols) df))
 
+(s/def ::join-on (s/and
+                  (s/or :vec (s/cat :left ::keyfn :right ::keyfn)
+                        :singleton ::keyfn)
+                  (with-conformer x
+                    :vec x
+                    :singleton [x x])))
+
+(s/fdef join
+  :args (s/cat :left ::dataframe :right ::dataframe :on ::join-on
+               :opts (s/* (s/cat :opt keyword? :val ::s/any)))
+  :ret ::dataframe)
+
 (defn join
   [left right on & {:keys [inner-join?]}]
-  (let [[lkey rkey] (if (sequential? on)
-                      on
-                      [on on])
-        left->right (comp (map-from-vals (->keyfn rkey) right)
-                          (->keyfn lkey))]
+  (let [[lkey rkey] (s/conform ::join-on on)
+        left->right (comp (map-from-vals rkey right) lkey)]
     (for [row left
           :when (or (left->right row) (not inner-join?))]
       (merge row (left->right row)))))
@@ -419,6 +432,11 @@
 (defn logistic
   [L k x0 x]
   (/ L (+ 1 (decay k (- x x0)))))
+
+(def entropy (comp -
+                   (partial sum #(* % (Math/log %)))
+                   vals
+                   distribution))
 
 (defn round-to
   [precision x]

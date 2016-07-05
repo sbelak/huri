@@ -398,7 +398,7 @@
                                          total# {:y :group__total}
                                          ~'group-by {:group ~'group-by}
                                          :else {})]
-                                 (merge {:alpha 0.25
+                                 (merge {:alpha 0.2
                                          :colour "black"
                                          :fill "black"}
                                         (when ~'smoothing-method
