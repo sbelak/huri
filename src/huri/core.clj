@@ -62,6 +62,24 @@
 
 (def ->keyfn (partial s/conform ::keyfn))
 
+(s/def ::dataframe (s/nilable (s/every map?)))
+
+(defn col
+  ([k]
+   (map (->keyfn k)))
+  ([k df]
+   (sequence (col k) df)))
+
+(defn any-of
+  [& keyfns]
+  {::combinator some-fn
+   ::keyfns keyfns})
+
+(defn every-of
+  [& keyfns]
+  {::combinator every-pred
+   ::keyfns keyfns})
+
 (s/def ::combinator fn?)
 
 (s/def ::keyfns (s/+ ::keyfn))
@@ -83,31 +101,8 @@
                  :fn x
                  :val (partial = x))))
 
-(s/def ::filters (s/and
-                  (s/or :map (s/map-of ::key-combinator ::pred
-                                       :conform-keys true)
-                        :pred (complement map?))
-                  (with-conformer x
-                    :map x
-                    :pred (s/conform ::filters {identity x}))))
-
-(s/def ::dataframe (s/nilable (s/every map?)))
-
-(defn col
-  ([k]
-   (map (->keyfn k)))
-  ([k df]
-   (sequence (col k) df)))
-
-(defn any-of
-  [& keyfns]
-  {::combinator some-fn
-   ::keyfns keyfns})
-
-(defn every-of
-  [& keyfns]
-  {::combinator every-pred
-   ::keyfns keyfns})
+(s/def ::filters (s/or :map (s/map-of ::key-combinator ::pred :conform-keys true)
+                       :pred ifn?))
 
 (s/fdef where
   :args (s/cat :filters ::filters :df (s/nilable coll?))
@@ -116,12 +111,13 @@
 (defn where
   [filters df]
   (into (empty df)
-    (->> filters
-         (s/conform ::filters)
-         (map (fn [[{:keys [::combinator ::keyfns]} pred]]
-                (apply combinator (map (partial comp pred) keyfns))))
-         (apply every-pred)
-         filter)
+    (filter (let [[tag filters] (s/conform ::filters filters)]
+              (if (= tag :map)
+                (->> filters
+                     (map (fn [[{:keys [::combinator ::keyfns]} pred]]
+                            (apply combinator (map (partial comp pred) keyfns))))
+                     (apply every-pred))
+                filters)))
     df))
 
 (s/def ::summary-fn
