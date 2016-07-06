@@ -13,9 +13,13 @@
             [clojure.spec.test :as s.test])
   (:import org.joda.time.DateTime))
 
+(defn papply
+  [f & args]
+  (apply partial apply f args))
+
 (defn mapply
   ([f]
-   (map (partial apply f)))
+   (map (papply f)))
   ([f coll & colls]
    (apply sequence (mapply f) coll colls)))
 
@@ -175,7 +179,7 @@
 
 (def rollup-vals (comp vals rollup))
 (def rollup-keep (comp (partial remove nil?) rollup-vals))
-(def rollup-cat (comp (partial apply concat) rollup-vals))
+(def rollup-cat (comp (papply concat) rollup-vals))
 
 (s/def ::fuse-fn (s/and (s/or :map map?
                               :kw keyword?
@@ -277,7 +281,7 @@
             (map (fn [[ks [tag f]]]
                    (let [f (if (= tag :vec)
                              (let [{:keys [f keyfns]} f]
-                               (comp (partial apply f) (apply juxt keyfns)))
+                               (comp (papply f) (apply juxt keyfns)))
                              f)]
                      (fn [row]
                        (assoc-in row ks (f row))))))
@@ -445,9 +449,11 @@
                    distribution))
 
 (defn round-to
-  [precision x]
-  (let [scale (/ precision)]
-    (/ (round (* x scale)) scale)))
+  ([precision]
+   (partial round-to precision))
+  ([precision x]
+   (let [scale (/ precision)]
+     (/ (round (* x scale)) scale))))
 
 (defn extent
   ([xs]
