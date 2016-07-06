@@ -149,7 +149,9 @@
    (apply f (map #(col % df) (ensure-seq keyfn)))))
 
 (s/fdef rollup
-  :args (s/alt :simple (s/cat :groupfn ::keyfn
+  :args (s/alt :curried (s/cat :groupfn ::keyfn
+                               :f (s/or :summary ::summary-fn :fn fn?))
+               :simple (s/cat :groupfn ::keyfn
                               :f (s/or :summary ::summary-fn :fn fn?)
                               :df (s/nilable coll?))
                :keyfn (s/cat :groupfn ::keyfn
@@ -159,6 +161,8 @@
   :ret (s/and map? sorted?))
 
 (defn rollup
+  ([groupfn f]
+   (partial rollup groupfn f))
   ([groupfn f df]
    (into (sorted-map) 
      (x/by-key (->keyfn groupfn) (comp (x/into [])
@@ -304,9 +308,11 @@
                     :vec x
                     :singleton [x x])))
 
+(s/def ::inner-join? boolean?)
+
 (s/fdef join
   :args (s/cat :left ::dataframe :right ::dataframe :on ::join-on
-               :opts (s/* (s/cat :opt keyword? :val ::s/any)))
+               :opts (s/keys* :opt-un [::inner-join]))
   :ret ::dataframe)
 
 (defn join
