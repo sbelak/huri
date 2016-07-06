@@ -1,4 +1,4 @@
-(defproject huri "0.6.0-SNAPSHOT"
+(defproject huri "0.7.0-SNAPSHOT"
   :description "Tools for the lazy data scientist"
   :url "https://github.com/sbelak/huri"
   :license {:name "Eclipse Public License"

@@ -5,9 +5,15 @@
 > — Armenian folktale
 
 __Huri__ is a Clojure library for the lazy data scientists. It consists of
-* __huri.core__ a loose set of functions on vanilla Clojure collections that consiitute an ad-hoc specification of a data frame; along with some utility math and date-time functions.
-* __huri.plot__ a DSL for plotting that compiles to R (ggplot2) meant to be used with [Gorilla REPL](gorilla-repl.org)
+* __huri.core__ a loose set of functions on vanilla Clojure collections that consiitute an ad-hoc specification of a data frame; along with some utility and math functions.
+* __huri.time__ time handling utilities built on top of [clj-time](https://github.com/clj-time/clj-time).
+* __huri.io__ I/O utilites following the API (`slurp-x`, `spit-x`, `cast-fns`, ...) used by [Semantic CSV](https://github.com/metasoarous/semantic-csv)
+* __huri.plot__ a DSL for plotting that compiles to R (ggplot2) meant to be used with [Gorilla REPL](http://gorilla-repl.org/)
 * __huri.etl__ some light-weight ETL scaffolding built on top of [~~Prismatic~~Plumatic Graph](https://github.com/plumatic/plumbing)
+
+## Status
+
+Huri is still in flux. However it is already used extenssively (and has been for some time) at [GoOpti](https://goopti.com), so it can be considered at least somewhat battle-tested.
 
 ## Design philosophy
 
@@ -18,7 +24,7 @@ I gave about motivation and design phiosophy behind Huri at ClojureD 2016: [vide
 Add this dependency to your project:
 
 ```clj
-[huri "0.6.0-SNAPSHOT"]
+[huri "0.7.0-SNAPSHOT"]
 ```
 
 To get the plots working make sure you have R installed, and on your path so it's accessible from the command line. If you can run Rscript from the command line, then you should be good to go. You will also need to have some libraries installed which you can do from R REPL with:
@@ -45,7 +51,7 @@ install.packages("svglite")
 
 ## For the future
 
-* Interactive charts
+* Interactive charts;
 * Optimizing `->>` that rewrites code on the fly to do as much as possible in a single pass and use transducer fusion more extnesively (intermediate results don't need to be end user consumable).
 
 
