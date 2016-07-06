@@ -4,7 +4,8 @@
                       [map :refer [safe-select-keys]])
             [net.cgrand.xforms :as x]
             [clojure.data.priority-map :refer [priority-map-by]]
-            [clojure.math.numeric-tower :refer [expt round]]            
+            [clojure.math.numeric-tower :refer [expt round]]
+            [clj-time.core :as t]
             [clojure.core.reducers :as r]
             [clojure.spec :as s]
             [clojure.spec.test :as s.test])
@@ -120,12 +121,12 @@
 (s/def ::summary-fn
   (s/map-of keyword? (s/and
                       (s/or :vec (s/cat :f ifn?
-                                        :keyfns (val-or-seq ::keyfn)
+                                        :keyfn (val-or-seq ::keyfn)
                                         :filter (s/? ::filters))
                             :fn fn?)
                       (with-conformer x
                         :vec x
-                        :fn [x identity]))))
+                        :fn {:f x :keyfn identity}))))
 
 (s/fdef summary
   :args (s/alt :curried ::summary-fn
@@ -140,7 +141,7 @@
   ([f df]
    (->> f
         (s/conform ::summary-fn)
-        (map-vals (fn [[f keyfn filters]]
+        (map-vals (fn [{:keys [f keyfn filters]}]
                     (summary f keyfn (cond->> df filters (where filters)))))))
   ([f keyfn df]
    (apply f (map #(col % df) (ensure-seq keyfn)))))
@@ -179,7 +180,7 @@
                               :fn ifn?)
                         (with-conformer x
                           :map x
-                          :kw {x x}
+                          :kw {x (->keyfn x)}
                           :fn {::group x})))
 
 (s/fdef rollup-fuse
@@ -193,7 +194,7 @@
    (partial rollup-fuse groupfn f))
   ([groupfn f df]
    (let [groupfn (s/conform ::fuse-fn groupfn)]
-     (rollup-vals (apply juxt (map ->keyfn (vals groupfn)))
+     (rollup-vals (apply juxt (vals groupfn))
                   (merge f (map-vals #(comp % first) groupfn))
                   df))))
 
