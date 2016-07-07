@@ -15,6 +15,16 @@
   [f & args]
   (apply partial apply f args))
 
+(defn pcomp
+  ([f g]
+   (fn [& args]
+     (let [intermediate (apply g args)]
+       (if (fn? intermediate)
+         (pcomp f intermediate)
+         (f intermediate)))))
+  ([f g & fs]
+   (reduce pcomp (list* f g fs))))
+
 (defn mapply
   ([f]
    (map (papply f)))
@@ -171,9 +181,9 @@
   ([groupfn f keyfn df]
    (rollup groupfn (comp f (partial col keyfn)) df)))
 
-(def rollup-vals (comp vals rollup))
-(def rollup-keep (comp (partial remove nil?) rollup-vals))
-(def rollup-cat (comp (papply concat) rollup-vals))
+(def rollup-vals (pcomp vals rollup))
+(def rollup-keep (pcomp (partial remove nil?) rollup-vals))
+(def rollup-cat (pcomp (papply concat) rollup-vals))
 
 (s/def ::fuse-fn (s/and (s/or :map map?
                               :kw keyword?
