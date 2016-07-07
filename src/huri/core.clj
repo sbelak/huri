@@ -304,7 +304,7 @@
                         :singleton ::keyfn)
                   (with-conformer x
                     :vec x
-                    :singleton [x x])))
+                    :singleton {:left x :right x})))
 
 (s/def ::inner-join? boolean?)
 
@@ -315,7 +315,7 @@
 
 (defn join
   [left right on & {:keys [inner-join?]}]
-  (let [[lkey rkey] (s/conform ::join-on on)
+  (let [{lkey :left rkey :right} (s/conform ::join-on on)
         left->right (comp (map-from-vals rkey right) lkey)]
     (for [row left
           :when (or (left->right row) (not inner-join?))]
