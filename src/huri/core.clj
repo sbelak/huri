@@ -59,7 +59,7 @@
      :seq x
      :val [x])))
 
-(def ensure-seq (partial s/conform (val-or-seq ::s/any)))
+(def ensure-seq (partial s/conform (val-or-seq any?)))
 
 (s/def ::keyfn (s/and
                 (s/or :kw keyword?
@@ -101,7 +101,7 @@
                                    ::keyfns [x]})))
 
 (s/def ::pred (s/and
-               (s/or :vec (s/and vector? (s/cat :f ifn? :args (s/* ::s/any)))
+               (s/or :vec (s/and vector? (s/cat :f ifn? :args (s/* any?)))
                      :fn ifn?
                      :val (complement ifn?))
                (with-conformer x
@@ -143,7 +143,7 @@
                :fn-map (s/cat :f ::summary-fn :df (s/nilable coll?))
                :fn (s/cat :f ifn? :keyfn (val-or-seq ::keyfn)
                           :df (s/nilable coll?)))
-  :ret ::s/any)
+  :ret any?)
 
 (defn summary
   ([f]
