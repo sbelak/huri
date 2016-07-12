@@ -397,13 +397,13 @@
                :keyfn (s/cat :keyfn ::keyfn :df (s/nilable coll?))
                :weightfn (s/cat :keyfn ::keyfn :weightfn ::keyfn
                                 :df (s/nilable coll?)))
-  :ret number?)
+  :ret (s/nilable number?))
 
 (defn mean
   ([df]
    (mean identity df))
   ([keyfn df]
-   (some->> (transduce (col keyfn) x/avg df) double))
+   (some->> df not-empty (transduce (col keyfn) x/avg) double))
   ([keyfn weightfn df]
    (let [keyfn (->keyfn keyfn)
          weightfn (->keyfn weightfn)]
