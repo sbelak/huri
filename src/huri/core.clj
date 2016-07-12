@@ -46,9 +46,7 @@
     (when (every? some? args)
       (apply f args))))
 
-(defn transpose
-  [m]
-  (apply map vector m))
+(def transpose (papply map vector))
 
 (defn val-or-seq
   [element-type]
@@ -385,13 +383,14 @@
    (let [{:keys [weightfn limit cutoff]
           :or {weightfn (constantly 1)}} opts]
      (when-let [norm (safe-divide (sum weightfn df))]
-       (let [d (into (priority-map-by >)
-                 (rollup keyfn (comp (partial * norm) sum) weightfn df))]
-         (if-let [cutoff (or cutoff (some-> limit dec (drop d) first val))]
-           (let [[d other] (split-with (comp (partial <= cutoff) val) d)]
-             (cond-> (into (priority-map-by >) d)
-               (not-empty other) (assoc :other (sum val other))))
-           d))))))
+       (let [dist (into (priority-map-by >)
+                    (rollup keyfn (comp (partial * norm) sum) weightfn df))]
+         (if-let [cutoff (or cutoff (some-> limit dec (drop dist) first val))]
+           (let [[topN other] (split-with (comp (partial <= cutoff) val) dist)]
+             (if (not-empty other)
+               (assoc (into (priority-map-by >) topN) :other (sum val other))
+               dist))
+           dist))))))
 
 (s/fdef mean
   :args (s/alt :coll (s/nilable coll?)
