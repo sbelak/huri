@@ -149,7 +149,7 @@
   ([f df]
    (->> f
         (s/conform ::summary-fn)
-        (map-vals (fn [{:keys [f keyfn filters]}]
+        (map-vals (fn [{f :f keyfn :keyfn [_ filters] :filters}]
                     (summary f keyfn (cond->> df filters (where filters)))))))
   ([f keyfn df]
    (apply f (map #(col % df) (ensure-seq keyfn)))))
