@@ -130,7 +130,7 @@
   (s/map-of keyword? (s/and
                       (s/or :vec (s/cat :f ifn?
                                         :keyfn (val-or-seq ::keyfn)
-                                        :filter (s/? ::filters))
+                                        :filters (s/? ::filters))
                             :fn fn?)
                       (with-conformer x
                         :vec x
