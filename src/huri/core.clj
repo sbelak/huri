@@ -31,6 +31,8 @@
   ([f coll & colls]
    (apply sequence (mapply f) coll colls)))
 
+(def mapm (comp (partial into {}) map))
+
 (defmacro for-cat
   [& for-body]
   `(apply concat (for ~@for-body)))
@@ -374,23 +376,41 @@
    (safe-divide (sum weightfn (where filters df))
                 (sum weightfn df))))
 
+(defn top-n
+  ([n df]
+   (top-n n identity df))  
+  ([n keyfn df]
+   (->> df
+        (sort-by (->keyfn keyfn) >)
+        (take n)
+        (into (empty df)))))
+
 (defn distribution
   ([df]
-   (distribution identity {} df))
+   (distribution identity df))
   ([keyfn df]
-   (distribution keyfn {} df))
-  ([keyfn opts df]
-   (let [{:keys [weightfn limit cutoff]
-          :or {weightfn (constantly 1)}} opts]
-     (when-let [norm (safe-divide (sum weightfn df))]
-       (let [dist (into (priority-map-by >)
-                    (rollup keyfn (comp (partial * norm) sum) weightfn df))]
-         (if-let [cutoff (or cutoff (some-> limit dec (drop dist) first val))]
-           (let [[topN other] (split-with (comp (partial <= cutoff) val) dist)]
-             (if (not-empty other)
-               (assoc (into (priority-map-by >) topN) :other (sum val other))
-               dist))
-           dist))))))
+   (distribution keyfn (constantly 1) df))
+  ([keyfn weightfn df]
+   (when-let [norm (safe-divide (sum weightfn df))]
+     (into (priority-map-by >)
+       (rollup keyfn (comp (partial * norm) sum) weightfn df)))))
+
+(def cdf (comp (partial reductions (fn [[_ acc] [x y]]
+                                     [x (+ y acc)]))
+               distribution))
+
+(defn percentiles
+  ([df]
+   (percentiles identity df))
+  ([keyfn df]
+   (percentiles keyfn (constantly 1) df))
+  ([keyfn weightfn df]
+   (loop [[[k p] & tail] (seq (distribution keyfn weightfn df))
+          percentile 1
+          acc []]
+     (if k
+       (recur tail (- percentile p) (conj acc [k percentile]))
+       (into {} acc)))))
 
 (s/fdef mean
   :args (s/alt :coll (s/nilable coll?)
@@ -414,11 +434,6 @@
    (harmonic-mean identity df))
   ([keyfn df]
    (double (/ (count df) (sum (comp / keyfn) df)))))
-
-(def cdf (comp (partial reductions (fn [[_ acc] [x y]]
-                                     [x (+ y acc)]))
-               (partial sort-by key <)
-               distribution))
 
 (defn smooth
   [window xs]
