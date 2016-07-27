@@ -42,6 +42,15 @@
   `(s/conformer (fn [[tag# ~x]]
                   (case tag# ~@tagvals))))
 
+(defmacro parallel-map
+  [& keyvals]
+  `(into {}
+     (pmap (fn [[k# v#]]
+             [k# @v#])
+           ~(->> keyvals
+                 (apply hash-map)
+                 (map-vals (partial list 'delay))))))
+
 (defn fsome
   [f]
   (fn [& args]
