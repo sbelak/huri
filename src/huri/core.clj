@@ -33,6 +33,11 @@
 
 (def mapm (comp (partial into {}) map))
 
+(defn juxtm
+  [m]
+  (fn [& args]
+    (map-vals #(apply % args) m)))
+
 (defmacro for-cat
   [& for-body]
   `(apply concat (for ~@for-body)))
@@ -203,18 +208,30 @@
                           :fn {::group x})))
 
 (s/fdef rollup-fuse
-  :args (s/alt :curried (s/cat :groupfn ::fuse-fn :f ::summary-fn)
-               :full (s/cat :groupfn ::fuse-fn :f ::summary-fn
-                            :df (s/nilable coll?)))
+  :args (s/alt :curried (s/cat :groupfn ::fuse-fn
+                               :f (s/or :summary ::summary-fn :fn fn?))
+               :simple (s/cat :groupfn ::fuse-fn
+                              :f (s/or :summary ::summary-fn :fn fn?)
+                              :df (s/nilable coll?))
+               :keyfn (s/cat :groupfn ::fuse-fn
+                             :f (s/or :summary ::summary-fn :fn fn?)
+                             :keyfn ::keyfn
+                             :df (s/nilable coll?)))
   :ret coll?)
 
 (defn rollup-fuse
   ([groupfn f]
    (partial rollup-fuse groupfn f))
   ([groupfn f df]
+   (rollup-fuse groupfn f identity df))
+  ([groupfn f keyfn df]
    (let [groupfn (s/conform ::fuse-fn groupfn)]
      (rollup-vals (apply juxt (vals groupfn))
-                  (merge f (map-vals #(comp % first) groupfn))
+                  (fn [group]
+                    (merge (if (map? f)
+                             (summary f (col keyfn group))
+                             (summary f keyfn group))
+                           ((juxtm groupfn) (first group))))
                   df))))
 
 (s/fdef rollup-transpose
