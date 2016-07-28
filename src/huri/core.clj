@@ -325,20 +325,29 @@
                     :vec x
                     :singleton {:left x :right x})))
 
-(s/def ::inner-join? boolean?)
+(s/def ::op #{:inner-join :semi-join :anti-join :left-join})
 
 (s/fdef join
-  :args (s/cat :left ::dataframe :right ::dataframe :on ::join-on
-               :opts (s/keys* :opt-un [::inner-join]))
+  :args (s/alt :default (s/cat :on ::join-on :left ::dataframe
+                               :right ::dataframe)
+               :with-op (s/cat :op ::op :on ::join-on :left ::dataframe
+                               :right ::dataframe))
   :ret ::dataframe)
 
 (defn join
-  [left right on & {:keys [inner-join?]}]
-  (let [{lkey :left rkey :right} (s/conform ::join-on on)
+  ([on left right]
+   (join :inner-join on left right))
+  ([op on left right]
+   (let [{lkey :left rkey :right} (s/conform ::join-on on)
         left->right (comp (map-from-vals rkey right) lkey)]
-    (for [row left
-          :when (or (left->right row) (not inner-join?))]
-      (merge row (left->right row)))))
+    (if (#{:semi-join :anti-join} op)
+      (where (if (= op :semi-join)
+               left->right
+               (comp nil? left->right))
+             left)
+      (for [row left
+            :when (or (left->right row) (= op :left-join))]
+        (merge row (left->right row)))))))
 
 (defn count-where
   ([filters]
