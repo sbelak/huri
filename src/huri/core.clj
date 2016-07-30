@@ -495,11 +495,6 @@
   [b a]
   (safe-divide (- b a) a)) 
 
-(defn threshold
-  [min-size xs]
-  (when (>= (count xs) min-size)
-    xs))
-
 (defn decay
   [lambda t]
   (expt Math/E (- (* lambda t))))
