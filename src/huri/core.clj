@@ -367,7 +367,7 @@
 
 (defn join
   ([on left right]
-   (join :inner-join on left right))
+   (join :left-join on left right))
   ([op on left right]
    (let [{lkey :left rkey :right} (s/conform ::join-on on)
         left->right (comp (map-from-vals rkey right) lkey)]
