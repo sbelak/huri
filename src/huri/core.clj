@@ -233,7 +233,7 @@
    (let [groupfn (s/conform ::fuse-fn groupfn)]
      (rollup-vals (apply juxt (vals groupfn))
                   (fn [group]
-                    (merge (summary f keyfn group)
+                    (merge (into {} (summary f keyfn group))
                            ((juxtm groupfn) (first group))))
                   df))))
 
@@ -417,6 +417,14 @@
    (safe-divide (sum keyfn-a df)
                 (sum keyfn-b df))))
 
+(s/fdef share
+  :args (s/alt :curried (s/cat :filters ::filters)
+               :simple (s/cat :filters ::filters
+                              :df (s/nilable coll?))
+               :weightfn (s/cat :filters ::filters
+                                :weightfn ::keyfn
+                                :df (s/nilable coll?))))
+
 (defn share
   ([filters]
    (partial share filters))
@@ -434,6 +442,15 @@
         (sort-by (->keyfn keyfn) >)
         (take n)
         (into (empty df)))))
+
+(s/fdef distribution
+  :args (s/alt :coll (s/cat :df (s/nilable coll?))
+               :keyfn (s/cat :keyfn ::keyfn
+                             :df (s/nilable coll?))
+               :weightfn (s/cat :keyfn ::keyfn
+                                :weightfn ::keyfn
+                                :df (s/nilable coll?)))
+  :ret (s/and map? sorted?))
 
 (defn distribution
   ([df]
