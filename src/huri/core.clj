@@ -49,12 +49,7 @@
 
 (defmacro parallel-map
   [& keyvals]
-  `(into {}
-     (pmap (fn [[k# v#]]
-             [k# @v#])
-           ~(->> keyvals
-                 (apply hash-map)
-                 (map-vals (partial list 'delay))))))
+  `(apply hash-map (pvalues ~@keyvals)))
 
 (defn fsome
   [f]
