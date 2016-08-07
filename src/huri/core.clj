@@ -42,6 +42,10 @@
   [& for-body]
   `(apply concat (for ~@for-body)))
 
+(defmacro for-keep
+  [& for-body]
+  `(remove nil? (for ~@for-body)))
+
 (defmacro with-conformer
   [x & tagvals]
   `(s/conformer (fn [[tag# ~x]]
