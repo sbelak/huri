@@ -509,7 +509,7 @@
 
 (defn growth
   [b a]
-  (safe-divide (- b a) a)) 
+  (safe-divide (* (if (neg? a) -1 1) (- b a)) a)) 
 
 (defn decay
   [lambda t]
