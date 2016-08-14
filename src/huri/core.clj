@@ -126,21 +126,25 @@
                        :pred ifn?))
 
 (s/fdef where
-  :args (s/cat :filters ::filters
-               :df (s/nilable coll?))
+  :args (s/alt :curried (s/cat :filters ::filters)
+               :full (s/cat :filters ::filters
+                            :df (s/nilable coll?)))
   :ret coll?)
 
 (defn where
-  [filters df]
-  (into (empty df)
-    (filter (let [[tag filters] (s/conform ::filters filters)]
-              (if (= tag :map)
-                (->> filters
-                     (map (fn [[{:keys [::combinator ::keyfns]} pred]]
-                            (apply combinator (map (partial comp pred) keyfns))))
-                     (apply every-pred))
-                filters)))
-    df))
+  ([filters]
+   (partial where))
+  ([filters df]
+   (into (empty df)
+     (filter
+      (let [[tag filters] (s/conform ::filters filters)]
+        (if (= tag :map)
+          (->> filters
+               (map (fn [[{:keys [::combinator ::keyfns]} pred]]
+                      (apply combinator (map (partial comp pred) keyfns))))
+               (apply every-pred))
+          filters)))
+     df)))
 
 (s/def ::summary-fn
   (s/or :map (s/map-of keyword? (s/and
@@ -154,7 +158,7 @@
         :fn fn?))
 
 (s/fdef summary
-  :args (s/alt :curried ::summary-fn
+  :args (s/alt :curried (s/cat :f ::summary-fn)
                :simple (s/cat :f ::summary-fn
                               :df (s/nilable coll?))
                :keyfn (s/cat :f ::summary-fn
@@ -398,7 +402,7 @@
     (double (apply / numerator denominators))))
 
 (s/fdef sum
-  :args (s/alt :coll (s/nilable coll?)
+  :args (s/alt :coll (c/cat :df (s/nilable coll?))
                :keyfn (s/cat :keyfn ::keyfn
                              :df (s/nilable coll?)))
   :ret number?)
@@ -479,7 +483,7 @@
        (into {} acc)))))
 
 (s/fdef mean
-  :args (s/alt :coll (s/nilable coll?)
+  :args (s/alt :coll (c/cat :df (s/nilable coll?))
                :keyfn (s/cat :keyfn ::keyfn
                              :df (s/nilable coll?))
                :weightfn (s/cat :keyfn ::keyfn
