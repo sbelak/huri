@@ -402,7 +402,7 @@
     (double (apply / numerator denominators))))
 
 (s/fdef sum
-  :args (s/alt :coll (c/cat :df (s/nilable coll?))
+  :args (s/alt :coll (s/cat :df (s/nilable coll?))
                :keyfn (s/cat :keyfn ::keyfn
                              :df (s/nilable coll?)))
   :ret number?)
@@ -483,7 +483,7 @@
        (into {} acc)))))
 
 (s/fdef mean
-  :args (s/alt :coll (c/cat :df (s/nilable coll?))
+  :args (s/alt :coll (s/cat :df (s/nilable coll?))
                :keyfn (s/cat :keyfn ::keyfn
                              :df (s/nilable coll?))
                :weightfn (s/cat :keyfn ::keyfn
