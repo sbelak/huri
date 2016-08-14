@@ -133,7 +133,7 @@
 
 (defn where
   ([filters]
-   (partial where))
+   (partial where filters))
   ([filters df]
    (into (empty df)
      (filter
