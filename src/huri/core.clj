@@ -123,7 +123,7 @@
                  :val (partial = x))))
 
 (s/def ::filters (s/or :map (s/map-of ::key-combinator ::pred :conform-keys true)
-                       :pred ifn?))
+                       :pred ::keyfn))
 
 (s/fdef where
   :args (s/alt :curried (s/cat :filters ::filters)
@@ -211,7 +211,7 @@
                               :kw keyword?
                               :fn ifn?)
                         (with-conformer x
-                          :map x
+                          :map (map-vals ->keyfn x)
                           :kw {x (->keyfn x)}
                           :fn {::group x})))
 
