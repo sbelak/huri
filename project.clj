@@ -10,5 +10,5 @@
                  [org.clojure/data.priority-map "0.0.7"] 
                  [net.cgrand/xforms "0.3.0"]                 
                  [cheshire "5.6.3"]
-                 [com.taoensso/timbre "4.7.3"]                 
+                 [com.taoensso/timbre "4.7.4"]                 
                  [gorilla-renderable "2.0.0"]])

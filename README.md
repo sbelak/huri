@@ -55,6 +55,13 @@ install.packages("svglite")
 * Optimizing `->>` that rewrites code on the fly to do as much as possible in a single pass and use transducer fusion more extnesively (intermediate results don't need to be end user consumable).
 
 
+## Contributing
+
+Feel free to submit a pull request.
+If you're looking for things to help with, please take a look at the [GH issues](https://github.com/sbelak/huri/issues) page.
+Contributing to the issues with comments, feedback, or requests is also greatly appreciated.
+
+
 ## License
 
 Copyright © 2016 Simon Belak
