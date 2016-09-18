@@ -5,7 +5,7 @@
 > — Armenian folktale
 
 __Huri__ is a Clojure library for the lazy data scientists. It consists of
-* __huri.core__ a loose set of functions on vanilla Clojure collections that consiitute an ad-hoc specification of a data frame; along with some utility and math functions.
+* __huri.core__ a loose set of functions on vanilla Clojure collections that constitute an ad-hoc specification of a data frame; along with some utility and math functions.
 * __huri.time__ time handling utilities built on top of [clj-time](https://github.com/clj-time/clj-time).
 * __huri.io__ I/O utilites following the API (`slurp-x`, `spit-x`, `cast-fns`, ...) used by [Semantic CSV](https://github.com/metasoarous/semantic-csv)
 * __huri.plot__ a DSL for plotting that compiles to R (ggplot2) meant to be used with [Gorilla REPL](http://gorilla-repl.org/)
@@ -13,7 +13,7 @@ __Huri__ is a Clojure library for the lazy data scientists. It consists of
 
 ## Status
 
-Huri is still in flux. However it is already used extenssively (and has been for some time) at [GoOpti](https://goopti.com), so it can be considered at least somewhat battle-tested.
+Huri is still in flux. However it is already used extensively (and has been for some time) at [GoOpti](https://goopti.com), so it can be considered at least somewhat battle-tested.
 
 ## Design philosophy
 
@@ -53,7 +53,7 @@ install.packages("directlabels")
 ## For the future
 
 * Interactive charts;
-* Optimizing `->>` that rewrites code on the fly to do as much as possible in a single pass and use transducer fusion more extnesively (intermediate results don't need to be end user consumable).
+* Optimizing `->>` that rewrites code on the fly to do as much as possible in a single pass and use transducer fusion more extensively (intermediate results don't need to be end user consumable).
 
 
 ## Contributing
