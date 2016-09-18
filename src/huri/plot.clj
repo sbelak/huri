@@ -250,7 +250,8 @@
                [:library :scales]
                [:library :grid]
                [:library :RColorBrewer]
-               [:library :ggrepel]               
+               [:library :ggrepel]
+               [:library :directlabels]
                [:<- :palette [:brewer.pal "Greys" {:n 9}]]
                {:color.background (keyword "palette[2]")}
                {:color.grid.major (keyword "palette[3]")}
@@ -304,7 +305,7 @@
                          :group-by nil
                          :colour "#c0392b"
                          :alpha 0.75
-                         :legend? :auto
+                         :legend :auto
                          :sort-by nil
                          :share-x? false
                          :trendline? false
@@ -406,16 +407,21 @@
                               (when (and ~'share-x? ~'group-by)
                                 [:facet_grid (r-template "%s ~ ." ~'group-by)
                                  {:scales "free_y"}])
-                              (case ~'x-scale
-                                :log [:scale_x_log10 {:labels :comma}]
-                                :sqrt [:scale_x_sqrt {:labels :comma}]
-                                :linear [:scale_x_continuous {:labels :comma}]
-                                :percent [:scale_x_continuous {:labels :percent}]
-                                :dates [:scale_x_date
-                                        {:labels [:date_format
+                              (let [scale# (fn [scale-type# labels#]
+                                             [scale-type# 
+                                              (merge {:labels labels#}
+                                                     (when (= ~'legend :direct)
+                                                       {:expand [:c 0.1 0]}))])]
+                                (case ~'x-scale
+                                  :log (scale# :scale_x_log10 :comma)
+                                  :sqrt (scale# :scale_x_sqrt :comma)
+                                  :linear (scale# :scale_x_continuous :comma)
+                                  :percent (scale# :scale_x_continuous :percent)
+                                  :dates (scale# :scale_x_date
+                                                 [:date_format
                                                   (date-scale-resolution
-                                                   (~'*df* ~x))]}]
-                                :categorical nil) 
+                                                   (~'*df* ~x))])
+                                  :categorical nil)) 
                               (case ~'y-scale
                                 :log [:scale_y_log10 {:labels :comma}]
                                 :sqrt [:scale_y_sqrt {:labels :comma}]
@@ -427,13 +433,16 @@
                                                    (~'*df* ~y))]}]
                                 :categorical nil)
                               theme 
-                              (when-not (or (true? ~'legend?)
-                                            (and ~'legend?
+                              (when-not (or (true? ~'legend)
+                                            (and (= :auto ~'legend)
                                                  (or ~'group-by
                                                      (:size options#))
                                                  (not ~'share-x?)
                                                  (not ~'facet)))
                                 [:theme {:legend.position "none"}])
+                              (when (= :direct ~'legend)
+                                [:geom_dl [:aes {:label ~'group-by}]
+                                 {:method [:list "last.bumpup" {:cex 0.6}]}])
                               (when (or (number? ~'x-rotate) 
                                         (and (= ~'x-rotate :auto)
                                              (nil? (:flip? options#))))
@@ -590,11 +599,11 @@
       {:size 2.5
        :show.legend false}])])
 
-(defplot box-plot x y {:legend? false}
+(defplot box-plot x y {:legend false}
   [[:ggplot :g [:aes {:x x :y y :fill x}]]
    [:geom_boxplot]])
 
-(defplot violin-plot x y {:legend? false
+(defplot violin-plot x y {:legend false
                           :trim? true
                           :scale :count
                           :summary? true}
@@ -609,7 +618,7 @@
 
 (defplot heatmap x y z {:extent nil
                         :z-label nil
-                        :legend? true
+                        :legend true
                         :legend-title true}
   [[:ggplot :g [:aes x y {:fill z}]]
    [:geom_tile]

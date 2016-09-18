@@ -35,6 +35,7 @@ install.packages("grid")
 install.packages("RColorBrewer")
 install.packages("ggrepel")
 install.packages("svglite")
+install.packages("directlabels")
 ```
 
 ## [Examples](http://viewer.gorilla-repl.org/view.html?source=github&user=sbelak&repo=huri&path=examples/examples.cljw)
