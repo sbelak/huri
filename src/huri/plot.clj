@@ -137,9 +137,9 @@
   (cond
     (nil? k) nil
     (sequential? k) (map sanitize-key k)
-    :else (-> (if (or (keyword? k) (symbol? k) (string? k))
-                (name k)
-                (str k))
+    :else (-> (str "g" (if (or (keyword? k) (symbol? k) (string? k))
+                         (name k)
+                         (str k)))              
               (s/replace #"(?:^\d)|\W" (comp (partial str "__") int first))
               keyword)))
 
