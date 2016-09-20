@@ -8,7 +8,7 @@
                  [prismatic/plumbing "0.5.3"]                 
                  [org.clojure/math.numeric-tower "0.0.4"]                 
                  [org.clojure/data.priority-map "0.0.7"] 
-                 [net.cgrand/xforms "0.3.0"]                 
+                 [net.cgrand/xforms "0.3.1"]                 
                  [cheshire "5.6.3"]
                  [com.taoensso/timbre "4.7.4"]                 
                  [gorilla-renderable "2.0.0"]])

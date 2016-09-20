@@ -198,7 +198,7 @@
   ([groupfn f df]
    (rollup groupfn f identity df))
   ([groupfn f keyfn df]
-   (into (sorted-map) 
+   (x/into (sorted-map) 
      (x/by-key (->keyfn groupfn) (comp (x/into [])
                                        (map (partial summary f keyfn))))       	
      df)))
@@ -477,10 +477,10 @@
   ([keyfn weightfn df]
    (loop [[[k p] & tail] (seq (distribution keyfn weightfn df))
           percentile 1
-          acc []]
+          acc {}]
      (if k
-       (recur tail (- percentile p) (conj acc [k percentile]))
-       (into {} acc)))))
+       (recur tail (- percentile p) (assoc acc k percentile))
+       acc))))
 
 (s/fdef mean
   :args (s/alt :coll (s/cat :df (s/nilable coll?))
