@@ -137,11 +137,15 @@
   (cond
     (nil? k) nil
     (sequential? k) (map sanitize-key k)
-    :else (-> (str "g" (if (or (keyword? k) (symbol? k) (string? k))
-                         (name k)
-                         (str k)))              
-              (s/replace #"(?:^\d)|\W" (comp (partial str "__") int first))
-              keyword)))
+    :else (let [sanitized (-> (if (or (keyword? k) (symbol? k) (string? k))
+                                (name k)
+                                (str k))              
+                              (s/replace #"(?:^\d)|\W" (comp (partial str "__")
+                                                             int first))
+                              keyword)]
+            (if (s/starts-with? sanitized "_")
+              (str "g" sanitized)
+              sanitized))))
 
 (defmulti ->r-type class)
 
