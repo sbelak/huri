@@ -208,10 +208,12 @@
 (def rollup-cat (pcomp (papply concat) rollup-vals))
 
 (s/def ::fuse-fn (s/and (s/or :map map?
+                              :vec sequential?
                               :kw keyword?
                               :fn ifn?)
                         (with-conformer x
                           :map (map-vals ->keyfn x)
+                          :vec (zipmap x x)
                           :kw {x (->keyfn x)}
                           :fn {::group x})))
 
