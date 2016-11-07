@@ -122,8 +122,17 @@
                  :fn x
                  :val (partial = x))))
 
-(s/def ::filters (s/or :map (s/map-of ::key-combinator ::pred :conform-keys true)
-                       :pred ::keyfn))
+(s/def ::filters (s/and
+                  (s/or :map (s/map-of ::key-combinator ::pred :conform-keys true)
+                        :pred ::keyfn)
+                  (with-conformer x
+                    :map (->> x
+                              (map (fn [[{:keys [::combinator ::keyfns]} pred]]
+                                     (->> keyfns
+                                          (map (partial comp pred))
+                                          (apply combinator))))
+                              (apply every-pred))
+                    :pred x)))
 
 (s/fdef where
   :args (s/alt :curried (s/cat :filters ::filters)
@@ -136,14 +145,7 @@
    (partial where filters))
   ([filters df]
    (into (empty df)
-     (filter
-      (let [[tag filters] (s/conform ::filters filters)]
-        (if (= tag :map)
-          (->> filters
-               (map (fn [[{:keys [::combinator ::keyfns]} pred]]
-                      (apply combinator (map (partial comp pred) keyfns))))
-               (apply every-pred))
-          filters)))
+     (filter (s/conform ::filters filters))
      df)))
 
 (s/def ::summary-fn
@@ -157,7 +159,7 @@
                                    :fn {:f x :keyfn identity})))
         :fn fn?))
 
-(s/fdef summary
+(s/fdef summarize
   :args (s/alt :curried (s/cat :f ::summary-fn)
                :simple (s/cat :f ::summary-fn
                               :df (s/nilable coll?))
@@ -166,17 +168,17 @@
                              :df (s/nilable coll?)))
   :ret any?)
 
-(defn summary
+(defn summarize
   ([f]
-   (partial summary f))
+   (partial summarize f))
   ([f df]
-   (summary f identity df))
+   (summarize f identity df))
   ([f keyfn df]
    (let [[tag f] (s/conform ::summary-fn f)]
      (if (= tag :map)
        (map-vals (fn [{f :f keyfn-local :keyfn [_ filters] :filters}]
-                   (summary f ({identity keyfn-local} keyfn) 
-                            (cond->> df filters (where filters))))
+                   (summarize f ({identity keyfn-local} keyfn) 
+                              (cond->> df filters (where filters))))
                  f)
        (apply f (map #(col % df) (ensure-seq keyfn)))))))
 
@@ -200,7 +202,7 @@
   ([groupfn f keyfn df]
    (x/into (sorted-map) 
      (x/by-key (->keyfn groupfn) (comp (x/into [])
-                                       (map (partial summary f keyfn))))       	
+                                       (map (partial summarize f keyfn))))
      df)))
 
 (def rollup-vals (pcomp vals rollup))
@@ -238,7 +240,7 @@
    (let [groupfn (s/conform ::fuse-fn groupfn)]
      (rollup-vals (apply juxt (vals groupfn))
                   (fn [group]
-                    (merge (into {} (summary f keyfn group))
+                    (merge (into {} (summarize f keyfn group))
                            ((juxtm groupfn) (first group))))
                   df))))
 
@@ -264,7 +266,8 @@
                    (map-vals (constantly (sorted-map)) f)))))
 
 (s/fdef window
-  :args (s/alt :simple (s/cat :f ifn?
+  :args (s/alt :curried (s/cat :f ifn?)
+               :simple (s/cat :f ifn?
                               :df (s/nilable coll?))
                :keyfn (s/cat :f ifn?
                              :keyfn ::keyfn
@@ -276,6 +279,8 @@
   :ret coll?)
 
 (defn window
+  ([f]
+   (partial window f))
   ([f df]
    (window f identity df))
   ([f keyfn df]
@@ -382,7 +387,7 @@
                (comp nil? left->right))
              left)
       (for [row left
-            :when (or (left->right row) (= op :left-join))]
+            :when (or (= op :left-join) (left->right row))]
         (merge row (left->right row)))))))
 
 (defn count-where
@@ -558,8 +563,6 @@
   ([lower upper x]
    (max (min x upper) lower)))
 
-(defn nil->0
-  [x]
-  (or x 0))
+(def nil->0 (fnil identity 0))
 
 (s.test/instrument)
