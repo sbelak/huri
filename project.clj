@@ -4,11 +4,11 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.9.0-alpha10"]
-                 [clj-time "0.12.0"]                                  
+                 [clj-time "0.12.2"]                                  
                  [prismatic/plumbing "0.5.3"]                 
                  [org.clojure/math.numeric-tower "0.0.4"]                 
                  [org.clojure/data.priority-map "0.0.7"] 
-                 [net.cgrand/xforms "0.3.1"]                 
+                 [net.cgrand/xforms "0.5.1"]  
                  [cheshire "5.6.3"]
                  [com.taoensso/timbre "4.7.4"]                 
                  [gorilla-renderable "2.0.0"]])

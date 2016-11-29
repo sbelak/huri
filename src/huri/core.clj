@@ -74,6 +74,8 @@
 
 (def ensure-seq (partial s/conform (val-or-seq any?)))
 
+(def flatten1 (partial mapcat ensure-seq))
+
 (s/def ::keyfn (s/and
                 (s/or :kw keyword?
                       :fn ifn?)
@@ -316,8 +318,12 @@
 
 (s/def ::col-transforms
   (s/map-of (val-or-seq keyword?)
-            (s/or :vec (s/and vector? (s/cat :f ifn? :keyfns (s/+ ::keyfn)))
-                  :ifn ifn?)
+            (s/and (s/or :vec (s/and vector?
+                                     (s/cat :f ifn? :keyfns (s/+ ::keyfn)))
+                         :ifn ifn?)
+                   (with-conformer x
+                     :vec (comp (papply (:f x)) (apply juxt (:keyfns x)))
+                     :ifn x))
             :conform-keys true))
 
 (s/fdef derive-cols
@@ -329,27 +335,23 @@
   [new-cols df]
   (map (->> new-cols
             (s/conform ::col-transforms)
-            (map (fn [[ks [tag f]]]
-                   (let [f (if (= tag :vec)
-                             (let [{:keys [f keyfns]} f]
-                               (comp (papply f) (apply juxt keyfns)))
-                             f)]
-                     (fn [row]
-                       (assoc-in row ks (f row))))))
+            (map (fn [[ks f]]
+                   (fn [row]
+                     (assoc-in row ks (f row)))))
             (apply comp))
        df))
 
 (defn update-cols
   [update-fns df]
   (derive-cols (for-map [[k f] update-fns]
-                 k [f k])
+                 k (comp f k))
                df))
 
 (defn ->data-frame
   [cols xs]
   (if (and (not= (count cols) (count (first xs)))
            (some coll? (first xs)))    
-    (->data-frame cols (map (partial mapcat ensure-seq) xs))
+    (->data-frame cols (map flatten1 xs))
     (map (partial zipmap cols) xs)))
 
 (defn select-cols
@@ -474,6 +476,7 @@
 
 (def cdf (comp (partial reductions (fn [[_ acc] [x y]]
                                      [x (+ y acc)]))
+               (partial sort-by key)
                distribution))
 
 (defn percentiles

@@ -32,7 +32,7 @@ To get the plots working make sure you have R installed, and on your path so it'
 install.packages("ggplot2")
 install.packages("scales")
 install.packages("grid")
-install.packages("RColorBrewer")
+install.packages("RColorBrewer")	
 install.packages("ggrepel")
 install.packages("svglite")
 install.packages("directlabels")
