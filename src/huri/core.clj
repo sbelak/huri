@@ -3,6 +3,7 @@
                                     map-from-vals]]
                       [map :refer [safe-select-keys]])
             [net.cgrand.xforms :as x]
+            [net.cgrand.xforms.rfs :as x.rfs]
             [clojure.data.priority-map :refer [priority-map-by]]
             [clojure.math.numeric-tower :refer [expt round]]
             [clj-time.core :as t]
@@ -505,7 +506,7 @@
   ([df]
    (mean identity df))
   ([keyfn df]
-   (some->> df not-empty (transduce (col keyfn) x/avg) double))
+   (some->> df not-empty (transduce (col keyfn) x.rfs/avg) double))
   ([keyfn weightfn df]
    (let [keyfn (->keyfn keyfn)
          weightfn (->keyfn weightfn)]
@@ -519,7 +520,7 @@
 
 (defn smooth
   [window xs]
-  (sequence (x/partition window 1 (x/reduce x/avg)) xs))
+  (sequence (x/partition window 1 x/avg) xs))
 
 (defn growth
   [b a]
