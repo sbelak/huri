@@ -179,7 +179,7 @@
   ([f keyfn df]
    (let [[tag f] (s/conform ::summary-fn f)]
      (if (= tag :map)
-       (map-vals (fn [{f :f keyfn-local :keyfn [_ filters] :filters}]
+       (map-vals (fn [{f :f keyfn-local :keyfn filters :filters}]
                    (summarize f ({identity keyfn-local} keyfn) 
                               (cond->> df filters (where filters))))
                  f)
