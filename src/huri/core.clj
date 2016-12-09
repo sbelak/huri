@@ -211,6 +211,7 @@
 (def rollup-vals (pcomp vals rollup))
 (def rollup-keep (pcomp (partial remove nil?) rollup-vals))
 (def rollup-cat (pcomp (papply concat) rollup-vals))
+(def rollup-mean (pcomp mean rollup-vals))
 
 (s/def ::fuse-fn (s/and (s/or :map map?
                               :vec sequential?
@@ -383,15 +384,16 @@
    (join :left-join on left right))
   ([op on left right]
    (let [{lkey :left rkey :right} (s/conform ::join-on on)
-        left->right (comp (map-from-vals rkey right) lkey)]
+         left->right (comp (map-from-vals rkey right) lkey)]
     (if (#{:semi-join :anti-join} op)
       (where (if (= op :semi-join)
                left->right
                (comp nil? left->right))
              left)
-      (for [row left
-            :when (or (= op :left-join) (left->right row))]
-        (merge row (left->right row)))))))
+      (doall
+       (for [row left
+             :when (or (= op :left-join) (left->right row))]
+         (merge row (left->right row))))))))
 
 (defn count-where
   ([filters]
