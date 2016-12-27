@@ -147,9 +147,9 @@
   ([filters]
    (partial where filters))
   ([filters df]
-   (into (empty df)
-     (filter (s/conform ::filters filters))
-     df)))
+   (cond->> (filter (s/conform ::filters filters) df)
+     (not (or (instance? clojure.lang.PersistentList df)
+              (instance? clojure.lang.LazySeq df))) (into (empty df)))))
 
 (s/def ::summary-fn
   (s/or :map (s/map-of keyword? (s/and
