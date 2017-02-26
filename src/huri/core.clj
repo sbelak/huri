@@ -3,9 +3,7 @@
                                     map-from-vals]]
                       [map :refer [safe-select-keys]])
             [net.cgrand.xforms :as x]
-            [net.cgrand.xforms.rfs :as x.rfs]
-            [clojure.data.priority-map :refer [priority-map-by]]
-            [clojure.math.numeric-tower :refer [expt round]]
+            [clojure.data.priority-map :refer [priority-map-by]]            
             [clj-time.core :as t]
             [clojure.core.reducers :as r]
             [clojure.spec :as s]
@@ -83,6 +81,20 @@
                 (with-conformer x
                   :kw #(safe-get % x)
                   :fn x)))
+
+(defn valid-keyfn? [[m k]]
+          (or (and (ifn? k) (not (keyword? k)))
+              (contains? m k)))
+
+(s/fdef my-safe-get
+  :args (fn [[m k]]
+          (println [m k])
+          (or (and (ifn? k) (not (keyword? k)))
+              (contains? m k))))
+
+(defn my-safe-get
+  [k m]
+  (k m))
 
 (def ->keyfn (partial s/conform ::keyfn))
 
@@ -211,7 +223,6 @@
 (def rollup-vals (pcomp vals rollup))
 (def rollup-keep (pcomp (partial remove nil?) rollup-vals))
 (def rollup-cat (pcomp (papply concat) rollup-vals))
-(def rollup-mean (pcomp mean rollup-vals))
 
 (s/def ::fuse-fn (s/and (s/or :map map?
                               :vec sequential?
@@ -267,7 +278,7 @@
                                   (update acc k conj [idx v]))
                                 acc
                                 kvs))
-                   (map-vals (constantly (sorted-map)) f)))))
+                   (zipmap (keys f) (repeat (sorted-map)))))))
 
 (s/fdef window
   :args (s/alt :curried (s/cat :f ifn?)
@@ -413,25 +424,6 @@
             (and (not (zero? numerator)) (empty? denominators)))
     (double (apply / numerator denominators))))
 
-(s/fdef sum
-  :args (s/alt :coll (s/cat :df (s/nilable coll?))
-               :keyfn (s/cat :keyfn ::keyfn
-                             :df (s/nilable coll?)))
-  :ret number?)
-
-(defn sum
-  ([df]
-   (sum identity df))
-  ([keyfn df]
-   (transduce (col keyfn) + df)))
-
-(defn rate
-  ([keyfn-a keyfn-b]
-   (partial rate keyfn-a keyfn-b))
-  ([keyfn-a keyfn-b df]
-   (safe-divide (sum keyfn-a df)
-                (sum keyfn-b df))))
-
 (s/fdef share
   :args (s/alt :curried (s/cat :filters ::filters)
                :simple (s/cat :filters ::filters
@@ -448,6 +440,66 @@
   ([filters weightfn df]   
    (safe-divide (sum weightfn (where filters df))
                 (sum weightfn df))))
+
+(s/fdef sum
+  :args (s/alt :coll (s/cat :df (s/nilable coll?))
+               :keyfn (s/cat :keyfn ::keyfn
+                             :df (s/nilable coll?)))
+  :ret number?)
+
+(defn sum
+  ([df]
+   (sum identity df))
+  ([keyfn df]
+   (transduce (keep (->keyfn keyfn)) + df)))
+
+(s/fdef rate
+  :args (s/alt :curried (s/cat :keyfn-a ::keyfn
+                               :keyfn-b ::keyfn)
+               :full (s/cat :keyfn-a ::keyfn
+                            :keyfn-b ::keyfn
+                            :df (s/nilable coll?)))
+  :ret (s/nilable number?))
+
+(defn rate
+  ([keyfn-a keyfn-b]
+   (partial rate keyfn-a keyfn-b))
+  ([keyfn-a keyfn-b df]
+   (let [keyfn-a (->keyfn keyfn-a)
+         keyfn-b (->keyfn keyfn-b)]
+     (transduce identity
+                (fn
+                  ([] [0 0])
+                  ([[sa sb :as acc] e]
+                   (let [a (keyfn-a e)
+                         b (keyfn-b e)]
+                     (if (or (nil? a) (or nil? b))
+                       acc
+                       [(+ a sa) (+ b sb)])))
+                  ([[a b]]
+                   (safe-divide a b)))
+                df))))
+
+(s/fdef mean
+  :args (s/alt :coll (s/cat :df (s/nilable coll?))
+               :keyfn (s/cat :keyfn ::keyfn
+                             :df (s/nilable coll?))
+               :weightfn (s/cat :keyfn ::keyfn
+                                :weightfn ::keyfn
+                                :df (s/nilable coll?)))
+  :ret (s/nilable number?))
+
+(defn mean
+  ([df]
+   (mean identity df))
+  ([keyfn df]
+   (mean identity (constantly 1)))
+  ([keyfn weightfn df]
+   (let [keyfn (->keyfn keyfn)
+         weightfn (->keyfn weightfn)]
+     (rate #(* (keyfn %) (weightfn %)) weightfn df))))
+
+(def rollup-mean (pcomp mean rollup-vals))
 
 (defn top-n
   ([n df]
@@ -477,77 +529,6 @@
      (into (priority-map-by >)
        (rollup keyfn (comp (partial * norm) sum) weightfn df)))))
 
-(def cdf (comp (partial reductions (fn [[_ acc] [x y]]
-                                     [x (+ y acc)]))
-               (partial sort-by key)
-               distribution))
-
-(defn percentiles
-  ([df]
-   (percentiles identity df))
-  ([keyfn df]
-   (percentiles keyfn (constantly 1) df))
-  ([keyfn weightfn df]
-   (loop [[[k p] & tail] (seq (distribution keyfn weightfn df))
-          percentile 1
-          acc {}]
-     (if k
-       (recur tail (- percentile p) (assoc acc k percentile))
-       acc))))
-
-(s/fdef mean
-  :args (s/alt :coll (s/cat :df (s/nilable coll?))
-               :keyfn (s/cat :keyfn ::keyfn
-                             :df (s/nilable coll?))
-               :weightfn (s/cat :keyfn ::keyfn
-                                :weightfn ::keyfn
-                                :df (s/nilable coll?)))
-  :ret (s/nilable number?))
-
-(defn mean
-  ([df]
-   (mean identity df))
-  ([keyfn df]
-   (some->> df not-empty (transduce (col keyfn) x.rfs/avg) double))
-  ([keyfn weightfn df]
-   (let [keyfn (->keyfn keyfn)
-         weightfn (->keyfn weightfn)]
-     (rate #(* (keyfn %) (weightfn %)) weightfn df))))
-
-(defn harmonic-mean
-  ([df]
-   (harmonic-mean identity df))
-  ([keyfn df]
-   (double (/ (count df) (sum (comp / keyfn) df)))))
-
-(defn smooth
-  [window xs]
-  (sequence (x/partition window 1 x/avg) xs))
-
-(defn growth
-  [b a]
-  (safe-divide (* (if (neg? a) -1 1) (- b a)) a)) 
-
-(defn decay
-  [lambda t]
-  (expt Math/E (- (* lambda t))))
-
-(defn logistic
-  [L k x0 x]
-  (/ L (+ 1 (decay k (- x x0)))))
-
-(def entropy (comp -
-                   (partial sum #(* % (Math/log %)))
-                   vals
-                   distribution))
-
-(defn round-to
-  ([precision]
-   (partial round-to precision))
-  ([precision x]
-   (let [scale (/ precision)]
-     (/ (round (* x scale)) scale))))
-
 (defn extent
   ([xs]
    (let [[x & xs] xs]
@@ -561,14 +542,6 @@
   ([keyfn df]
    (extent (col keyfn df))))
 
-(defn clamp
-  ([bounds]
-   (partial clamp bounds))
-  ([[lower upper] x]
-   (clamp lower upper x))
-  ([lower upper x]
-   (max (min x upper) lower)))
-
-(def nil->0 (fnil identity 0))
+(def patch-nil (partial fnil identity))
 
 (s.test/instrument)
