@@ -1,5 +1,5 @@
 (ns huri.math
-  (:require [huri.core :refer [safe-divide distribution]]
+  (:require [huri.core :refer [safe-divide distribution sum]]
             [net.cgrand.xforms :as x]
             [clojure.math.numeric-tower :refer [expt round]]))
 
