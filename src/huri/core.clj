@@ -416,23 +416,6 @@
             (and (not (zero? numerator)) (empty? denominators)))
     (double (apply / numerator denominators))))
 
-(s/fdef share
-  :args (s/alt :curried (s/cat :filters ::filters)
-               :simple (s/cat :filters ::filters
-                              :df (s/nilable coll?))
-               :weightfn (s/cat :filters ::filters
-                                :weightfn ::keyfn
-                                :df (s/nilable coll?))))
-
-(defn share
-  ([filters]
-   (partial share filters))
-  ([filters df]
-   (safe-divide (count-where filters df) (count df)))
-  ([filters weightfn df]   
-   (safe-divide (sum weightfn (where filters df))
-                (sum weightfn df))))
-
 (s/fdef sum
   :args (s/alt :coll (s/cat :df (s/nilable coll?))
                :keyfn (s/cat :keyfn ::keyfn
@@ -471,6 +454,23 @@
                   ([[a b]]
                    (safe-divide a b)))
                 df))))
+
+(s/fdef share
+  :args (s/alt :curried (s/cat :filters ::filters)
+               :simple (s/cat :filters ::filters
+                              :df (s/nilable coll?))
+               :weightfn (s/cat :filters ::filters
+                                :weightfn ::keyfn
+                                :df (s/nilable coll?))))
+
+(defn share
+  ([filters]
+   (partial share filters))
+  ([filters df]
+   (share filters (constantly 1) df))
+  ([filters weightfn df]
+   (safe-divide (sum weightfn (where filters df))
+                (sum weightfn df))))
 
 (s/fdef mean
   :args (s/alt :coll (s/cat :df (s/nilable coll?))
