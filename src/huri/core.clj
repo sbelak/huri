@@ -1,7 +1,6 @@
 (ns huri.core
   (:require (plumbing [core :refer [distinct-fast map-vals safe-get for-map
-                                    map-from-vals]]
-                      [map :refer [safe-select-keys]])
+                                    map-from-vals map-from-keys]])
             [net.cgrand.xforms :as x]
             [clojure.data.priority-map :refer [priority-map-by]]            
             [clj-time.core :as t]
@@ -60,6 +59,8 @@
     (when (every? some? args)
       (apply f args))))
 
+(def patch-nil (partial fnil identity))
+
 (def transpose (papply map vector))
 
 (defn val-or-seq
@@ -76,25 +77,11 @@
 (def flatten1 (partial mapcat ensure-seq))
 
 (s/def ::keyfn (s/and
-                (s/or :kw keyword?
-                      :fn ifn?)
+                (s/or :fn (s/and ifn? (complement (some-fn keyword? vector?)))
+                      :key (constantly true))
                 (with-conformer x
-                  :kw #(safe-get % x)
-                  :fn x)))
-
-(defn valid-keyfn? [[m k]]
-          (or (and (ifn? k) (not (keyword? k)))
-              (contains? m k)))
-
-(s/fdef my-safe-get
-  :args (fn [[m k]]
-          (println [m k])
-          (or (and (ifn? k) (not (keyword? k)))
-              (contains? m k))))
-
-(defn my-safe-get
-  [k m]
-  (k m))
+                  :fn x
+                  :key #(safe-get % x))))
 
 (def ->keyfn (partial s/conform ::keyfn))
 
@@ -106,6 +93,36 @@
   ([k df]
    (sequence (col k) df)))
 
+(s/def ::col-transforms
+  (s/map-of keyword?
+            (s/and (s/or :vec (s/and vector?
+                                     (s/cat :f ifn? :keyfns (s/+ ::keyfn)))
+                         :ifn ifn?)
+                   (with-conformer x
+                     :vec (comp (papply (:f x)) (apply juxt (:keyfns x)))
+                     :ifn x))))
+
+(s/fdef derive-cols
+  :args (s/cat :new-cols ::col-transforms
+               :df ::dataframe)
+  :ret ::dataframe)
+
+(defn derive-cols
+  [new-cols df]
+  (map (->> new-cols
+            (s/conform ::col-transforms)
+            (map (fn [[ks f]]
+                   (fn [row]
+                     (assoc row ks (f row)))))
+            (apply comp))
+       df))
+
+(defn update-cols
+  [update-fns df]
+  (derive-cols (for-map [[k f] update-fns]
+                 k (comp f k))
+               df))
+
 (defn any-of
   [& keyfns]
   {::combinator some-fn
@@ -116,26 +133,24 @@
   {::combinator every-pred
    ::keyfns keyfns})
 
-(s/def ::combinator fn?)
-
-(s/def ::keyfns (s/+ ::keyfn))
+(s/def ::keyfns (s/+ (val-or-seq ::keyfn)))
 
 (s/def ::key-combinator (s/and
                          (s/or :combinator (s/keys :req [::combinator ::keyfns])
-                               :keyfn ::keyfn)
+                               :keyfns (val-or-seq ::keyfn))
                          (with-conformer x
                            :combinator x
-                           :keyfn {::combinator identity
-                                   ::keyfns [x]})))
+                           :keyfns {::combinator identity
+                                    ::keyfns [x]})))
 
 (s/def ::pred (s/and
                (s/or :vec (s/and vector? (s/cat :f ifn? :args (s/* any?)))
                      :fn ifn?
                      :val (complement ifn?))
                (with-conformer x
-                 :vec #(apply (:f x) % (:args x))
-                 :fn x
-                 :val (partial = x))))
+                 :vec #(apply (:f x) (concat % (:args x)))
+                 :fn (papply x)
+                 :val (papply = x))))
 
 (s/def ::filters (s/and
                   (s/or :map (s/map-of ::key-combinator ::pred :conform-keys true)
@@ -144,7 +159,7 @@
                     :map (->> x
                               (map (fn [[{:keys [::combinator ::keyfns]} pred]]
                                      (->> keyfns
-                                          (map (partial comp pred))
+                                          (map #(comp pred (apply juxt %)))
                                           (apply combinator))))
                               (apply every-pred))
                     :pred x)))
@@ -159,20 +174,10 @@
   ([filters]
    (partial where filters))
   ([filters df]
-   (cond->> (filter (s/conform ::filters filters) df)
-     (not (or (instance? clojure.lang.PersistentList df)
-              (instance? clojure.lang.LazySeq df))) (into (empty df)))))
-
-(s/def ::summary-fn
-  (s/or :map (s/map-of keyword? (s/and
-                                 (s/or :vec (s/cat :f ifn?
-                                                   :keyfn (val-or-seq ::keyfn)
-                                                   :filters (s/? ::filters))
-                                       :fn fn?)
-                                 (with-conformer x
-                                   :vec x
-                                   :fn {:f x :keyfn identity})))
-        :fn fn?))
+   (if (or (instance? clojure.lang.PersistentList df)
+           (instance? clojure.lang.LazySeq df))
+     (filter (s/conform ::filters filters) df)
+     (into (empty df) (filter (s/conform ::filters filters)) df))))
 
 (s/fdef summarize
   :args (s/alt :curried (s/cat :f ::summary-fn)
@@ -183,6 +188,18 @@
                              :df (s/nilable coll?)))
   :ret any?)
 
+(s/def ::summary-fn
+  (s/or :map (s/map-of keyword? (s/and
+                                 (s/or :vec (s/cat :f ifn?
+                                                   :keyfn (val-or-seq ::keyfn)
+                                                   :filters (s/? ::filters))
+                                       :fn fn?)
+                                 (with-conformer x
+                                   :vec x
+                                   :fn {:f x
+                                        :keyfn [identity]})))
+        :fn fn?))
+
 (defn summarize
   ([f]
    (partial summarize f))
@@ -191,10 +208,16 @@
   ([f keyfn df]
    (let [[tag f] (s/conform ::summary-fn f)]
      (if (= tag :map)
-       (map-vals (fn [{f :f keyfn-local :keyfn filters :filters}]
-                   (summarize f ({identity keyfn-local} keyfn) 
-                              (cond->> df filters (where filters))))
-                 f)
+       (into {}
+         (pmap (fn [[k {f :f keyfn-local :keyfn filters :filters}]]
+                 [k (summarize f (cond
+                                   (= keyfn identity) keyfn-local
+                                   (= keyfn-local [identity]) keyfn
+                                   :else (map #(comp % keyfn) keyfn-local))
+                               (if filters
+                                 (where filters df)
+                                 df))])
+               f))
        (apply f (map #(col % df) (ensure-seq keyfn)))))))
 
 (s/fdef rollup
@@ -215,7 +238,7 @@
   ([groupfn f df]
    (rollup groupfn f identity df))
   ([groupfn f keyfn df]
-   (x/into (sorted-map) 
+   (into (sorted-map) 
      (x/by-key (->keyfn groupfn) (comp (x/into [])
                                        (map (partial summarize f keyfn))))
      df)))
@@ -329,37 +352,6 @@
   [m]
   (apply map (comp (partial zipmap (keys m)) vector) (vals m)))
 
-(s/def ::col-transforms
-  (s/map-of (val-or-seq keyword?)
-            (s/and (s/or :vec (s/and vector?
-                                     (s/cat :f ifn? :keyfns (s/+ ::keyfn)))
-                         :ifn ifn?)
-                   (with-conformer x
-                     :vec (comp (papply (:f x)) (apply juxt (:keyfns x)))
-                     :ifn x))
-            :conform-keys true))
-
-(s/fdef derive-cols
-  :args (s/cat :new-cols ::col-transforms
-               :df ::dataframe)
-  :ret ::dataframe)
-
-(defn derive-cols
-  [new-cols df]
-  (map (->> new-cols
-            (s/conform ::col-transforms)
-            (map (fn [[ks f]]
-                   (fn [row]
-                     (assoc-in row ks (f row)))))
-            (apply comp))
-       df))
-
-(defn update-cols
-  [update-fns df]
-  (derive-cols (for-map [[k f] update-fns]
-                 k (comp f k))
-               df))
-
 (defn ->data-frame
   [cols xs]
   (if (and (not= (count cols) (count (first xs)))
@@ -369,7 +361,7 @@
 
 (defn select-cols
   [cols df]
-  (map #(safe-select-keys % cols) df))
+  (map (juxtm (map-from-keys ->keyfn cols)) df))
 
 (s/def ::join-on (s/and
                   (s/or :vec (s/cat :left ::keyfn :right ::keyfn)
@@ -396,15 +388,15 @@
   ([op on left right]
    (let [{lkey :left rkey :right} (s/conform ::join-on on)
          left->right (comp (map-from-vals rkey right) lkey)]
-    (if (#{:semi-join :anti-join} op)
-      (where (if (= op :semi-join)
-               left->right
-               (comp nil? left->right))
-             left)
-      (doall
-       (for [row left
-             :when (or (= op :left-join) (left->right row))]
-         (merge row (left->right row))))))))
+     (if (#{:semi-join :anti-join} op)
+       (where (if (= op :semi-join)
+                left->right
+                (comp nil? left->right))
+              left)
+       (doall
+        (for [row left
+              :when (or (= op :left-join) (left->right row))]
+          (merge row (left->right row))))))))
 
 (defn count-where
   ([filters]
@@ -473,7 +465,7 @@
                   ([[sa sb :as acc] e]
                    (let [a (keyfn-a e)
                          b (keyfn-b e)]
-                     (if (or (nil? a) (or nil? b))
+                     (if (or (nil? a) (nil? b))
                        acc
                        [(+ a sa) (+ b sb)])))
                   ([[a b]]
@@ -493,7 +485,7 @@
   ([df]
    (mean identity df))
   ([keyfn df]
-   (mean identity (constantly 1)))
+   (mean keyfn (constantly 1) df))
   ([keyfn weightfn df]
    (let [keyfn (->keyfn keyfn)
          weightfn (->keyfn weightfn)]
@@ -505,10 +497,7 @@
   ([n df]
    (top-n n identity df))  
   ([n keyfn df]
-   (->> df
-        (sort-by (->keyfn keyfn) >)
-        (take n)
-        (into (empty df)))))
+   (into (empty df) (take n) (sort-by (->keyfn keyfn) > df))))
 
 (s/fdef distribution
   :args (s/alt :coll (s/cat :df (s/nilable coll?))
@@ -541,7 +530,5 @@
              xs)))
   ([keyfn df]
    (extent (col keyfn df))))
-
-(def patch-nil (partial fnil identity))
 
 (s.test/instrument)
