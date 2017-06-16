@@ -339,7 +339,7 @@
           (~name ~@(butlast positional-params) :y__auto 
            (assoc options# :group-by :series__auto) 
            (melt ~(last positional-params) :y__auto :series__auto df#))
-          (when (not-empty df)
+          (when (not-empty df#)
             (let [{:keys ~(mapv #(symbol (subs (str %) 1)) (keys defaults))
                    :as options#} (merge ~defaults options#)
                   total# (when (and (:stacked? options#)
