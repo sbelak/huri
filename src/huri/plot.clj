@@ -338,130 +338,131 @@
         (if (sequential? ~(last positional-params))
           (~name ~@(butlast positional-params) :y__auto 
            (assoc options# :group-by :series__auto) 
-           (melt ~(last positional-params) :y__auto :series__auto df#))          
-          (let [{:keys ~(mapv #(symbol (subs (str %) 1)) (keys defaults))
-                 :as options#} (merge ~defaults options#)
-                total# (when (and (:stacked? options#)
-                                  (or ~'trendline? (:show-values? options#)))
-                         (comp (rollup ~(first positional-params) sum
-                                       ~(second positional-params)
-                                       df#)
-                               ~(first positional-params)))
-                used-cols# (->> options#
-                                vals                                
-                                (concat ~(vec positional-params) [:group__total])
-                                flatten
-                                (filter keyword?)
-                                (map sanitize-key))
-                ~'*df* (select-keys (->col-oriented
-                                     (if total#
-                                       (derive-cols {:group__total total#} df#)
-                                       df#))
-                                    used-cols#)
-                col-types# (typespec ~'*df*)
-                ~'x-scale (if (= ~'x-scale :auto)
-                            (case (cond->> (col-types# (sanitize-key ~x))
-                                    (= '~name '~'bar-chart)
-                                    (#(get #{:date} % :categorical)))
-                              :date :dates
-                              :categorical :categorical
-                              :linear)
-                            ~'x-scale)
-                ~'y-scale (if (= ~'y-scale :auto)
-                            (case (col-types# (sanitize-key ~y))
-                              :date :dates
-                              :categorical :categorical
-                              :linear)
-                            ~'y-scale)
-                ~'x-label (or ~'x-label
-                              (if (#{:x__auto :y__auto} ~x)
-                                ""
-                                (name ~x))) 
-                ~'y-label (or ~'y-label
-                              ~(if y
-                                 `(if (not= ~y :y__auto)
-                                    (name ~y)
-                                    "")
-                                 ""))]            
-            (view 
-             [[:<- :g [:data.frame (map-vals ->col ~'*df*)]]
-              preamble
-              (->> (let [~@(mapcat #(vector % `(sanitize-key ~%))
-                                   (concat positional-params
-                                           ['group-by 'facet 'sort-by]))]
-                     (concat ~body                              
-                             [(when ~'facet
-                                [:facet_grid (keyword
-                                              (if (sequential? ~'facet)
-                                                (->> ~'facet
-                                                     (map name)
-                                                     (s/join " ~ "))
-                                                (str "~" (name ~'facet))))])
-                              (when ~'trendline?
-                                [:geom_smooth
-                                 [:aes (cond
-                                         total# {:y :group__total}
-                                         ~'group-by {:group ~'group-by}
-                                         :else {})]
-                                 (merge {:alpha 0.2
-                                         :colour "black"
-                                         :fill "black"}
-                                        (when ~'smoothing-method
-                                          {:method (name ~'smoothing-method)}))])
-                              (when (and ~'share-x? ~'group-by)
-                                [:facet_grid (r-template "%s ~ ." ~'group-by)
-                                 {:scales "free_y"}])
-                              (let [scale# (fn [scale-type# labels#]
-                                             [scale-type# 
-                                              (merge {:labels labels#}
-                                                     (when (= ~'legend :direct)
-                                                       {:expand [:c 0.1 0]}))])]
-                                (case ~'x-scale
-                                  :log (scale# :scale_x_log10 :comma)
-                                  :sqrt (scale# :scale_x_sqrt :comma)
-                                  :linear (scale# :scale_x_continuous :comma)
-                                  :percent (scale# :scale_x_continuous :percent)
-                                  :dates (scale# :scale_x_date
-                                                 [:date_format
-                                                  (date-scale-resolution
-                                                   (~'*df* ~x))])
-                                  :categorical nil)) 
-                              (case ~'y-scale
-                                :log [:scale_y_log10 {:labels :comma}]
-                                :sqrt [:scale_y_sqrt {:labels :comma}]
-                                :linear [:scale_y_continuous {:labels :comma}]
-                                :percent [:scale_y_continuous {:labels :percent}]
-                                :dates [:scale_y_date
-                                        {:labels [:date_format
-                                                  (date-scale-resolution
-                                                   (~'*df* ~y))]}]
-                                :categorical nil)
-                              theme 
-                              (when-not (or (true? ~'legend)
-                                            (and (= :auto ~'legend)
-                                                 (or ~'group-by
-                                                     (:size options#))
-                                                 (not ~'share-x?)
-                                                 (not ~'facet)))
-                                [:theme {:legend.position "none"}])
-                              (when (= :direct ~'legend)
-                                [:geom_dl [:aes {:label ~'group-by}]
-                                 {:method [:list "last.bumpup" {:cex 0.6}]}])
-                              (when (or (number? ~'x-rotate) 
-                                        (and (= ~'x-rotate :auto)
-                                             (nil? (:flip? options#))))
-                                [:theme
-                                 {:axis.text.x [:element_text
-                                                {:angle (if (number? ~'x-rotate)
-                                                          ~'x-rotate
-                                                          45)
-                                                 :hjust 1}]}])
-                              [:labs {:x ~'x-label
-                                      :y ~'y-label
-                                      :title ~'title}]]))
-                   (remove nil?)
-                   (apply r+))]
-             {:width ~'width :height ~'height})))))))
+           (melt ~(last positional-params) :y__auto :series__auto df#))
+          (when (not-empty df)
+            (let [{:keys ~(mapv #(symbol (subs (str %) 1)) (keys defaults))
+                   :as options#} (merge ~defaults options#)
+                  total# (when (and (:stacked? options#)
+                                    (or ~'trendline? (:show-values? options#)))
+                           (comp (rollup ~(first positional-params) sum
+                                         ~(second positional-params)
+                                         df#)
+                                 ~(first positional-params)))
+                  used-cols# (->> options#
+                                  vals                                
+                                  (concat ~(vec positional-params) [:group__total])
+                                  flatten
+                                  (filter keyword?)
+                                  (map sanitize-key))
+                  ~'*df* (select-keys (->col-oriented
+                                       (if total#
+                                         (derive-cols {:group__total total#} df#)
+                                         df#))
+                                      used-cols#)
+                  col-types# (typespec ~'*df*)
+                  ~'x-scale (if (= ~'x-scale :auto)
+                              (case (cond->> (col-types# (sanitize-key ~x))
+                                      (= '~name '~'bar-chart)
+                                      (#(get #{:date} % :categorical)))
+                                :date :dates
+                                :categorical :categorical
+                                :linear)
+                              ~'x-scale)
+                  ~'y-scale (if (= ~'y-scale :auto)
+                              (case (col-types# (sanitize-key ~y))
+                                :date :dates
+                                :categorical :categorical
+                                :linear)
+                              ~'y-scale)
+                  ~'x-label (or ~'x-label
+                                (if (#{:x__auto :y__auto} ~x)
+                                  ""
+                                  (name ~x))) 
+                  ~'y-label (or ~'y-label
+                                ~(if y
+                                   `(if (not= ~y :y__auto)
+                                      (name ~y)
+                                      "")
+                                   ""))]            
+              (view 
+               [[:<- :g [:data.frame (map-vals ->col ~'*df*)]]
+                preamble
+                (->> (let [~@(mapcat #(vector % `(sanitize-key ~%))
+                                     (concat positional-params
+                                             ['group-by 'facet 'sort-by]))]
+                       (concat ~body                              
+                               [(when ~'facet
+                                  [:facet_grid (keyword
+                                                (if (sequential? ~'facet)
+                                                  (->> ~'facet
+                                                       (map name)
+                                                       (s/join " ~ "))
+                                                  (str "~" (name ~'facet))))])
+                                (when ~'trendline?
+                                  [:geom_smooth
+                                   [:aes (cond
+                                           total# {:y :group__total}
+                                           ~'group-by {:group ~'group-by}
+                                           :else {})]
+                                   (merge {:alpha 0.2
+                                           :colour "black"
+                                           :fill "black"}
+                                          (when ~'smoothing-method
+                                            {:method (name ~'smoothing-method)}))])
+                                (when (and ~'share-x? ~'group-by)
+                                  [:facet_grid (r-template "%s ~ ." ~'group-by)
+                                   {:scales "free_y"}])
+                                (let [scale# (fn [scale-type# labels#]
+                                               [scale-type# 
+                                                (merge {:labels labels#}
+                                                       (when (= ~'legend :direct)
+                                                         {:expand [:c 0.1 0]}))])]
+                                  (case ~'x-scale
+                                    :log (scale# :scale_x_log10 :comma)
+                                    :sqrt (scale# :scale_x_sqrt :comma)
+                                    :linear (scale# :scale_x_continuous :comma)
+                                    :percent (scale# :scale_x_continuous :percent)
+                                    :dates (scale# :scale_x_date
+                                                   [:date_format
+                                                    (date-scale-resolution
+                                                     (~'*df* ~x))])
+                                    :categorical nil)) 
+                                (case ~'y-scale
+                                  :log [:scale_y_log10 {:labels :comma}]
+                                  :sqrt [:scale_y_sqrt {:labels :comma}]
+                                  :linear [:scale_y_continuous {:labels :comma}]
+                                  :percent [:scale_y_continuous {:labels :percent}]
+                                  :dates [:scale_y_date
+                                          {:labels [:date_format
+                                                    (date-scale-resolution
+                                                     (~'*df* ~y))]}]
+                                  :categorical nil)
+                                theme 
+                                (when-not (or (true? ~'legend)
+                                              (and (= :auto ~'legend)
+                                                   (or ~'group-by
+                                                       (:size options#))
+                                                   (not ~'share-x?)
+                                                   (not ~'facet)))
+                                  [:theme {:legend.position "none"}])
+                                (when (= :direct ~'legend)
+                                  [:geom_dl [:aes {:label ~'group-by}]
+                                   {:method [:list "last.bumpup" {:cex 0.6}]}])
+                                (when (or (number? ~'x-rotate) 
+                                          (and (= ~'x-rotate :auto)
+                                               (nil? (:flip? options#))))
+                                  [:theme
+                                   {:axis.text.x [:element_text
+                                                  {:angle (if (number? ~'x-rotate)
+                                                            ~'x-rotate
+                                                            45)
+                                                   :hjust 1}]}])
+                                [:labs {:x ~'x-label
+                                        :y ~'y-label
+                                        :title ~'title}]]))
+                     (remove nil?)
+                     (apply r+))]
+               {:width ~'width :height ~'height}))))))))
 
 (defn format-value
   [x percent?]
