@@ -10,6 +10,7 @@
   (:import org.joda.time.DateTime))
 
 (defn papply
+  "partial that applies its arguments."
   [f & args]
   (apply partial apply f args))
 
@@ -24,12 +25,16 @@
    (reduce pcomp (list* f g fs))))
 
 (defn mapply
+  "map that applies f via apply."
   ([f]
    (map (papply f)))
-  ([f coll & colls]
-   (apply sequence (mapply f) coll colls)))
+  ([f coll]
+   (sequence (mapply f) coll)))
 
-(def mapm (comp (partial into {}) map))
+(defn mapm
+  ""
+  [f coll]
+  (into {} (map f) coll))
 
 (defn juxtm
   [m]
@@ -50,18 +55,25 @@
                   (case tag# ~@tagvals))))
 
 (defmacro parallel-map
+  "A hash map constructor that evaluates its arguments in parallel."
   [& keyvals]
   `(apply hash-map (pvalues ~@keyvals)))
 
 (defn fsome
+  "Takes a function f and returns a function that gets called only if all
+the arguments passed in are not nill. Else returns nil."
   [f]
   (fn [& args]
     (when (every? some? args)
       (apply f args))))
 
-(def patch-nil (partial fnil identity))
+(def patch-nil
+  "Replaces nil with patch value, passes other values through."
+  (partial fnil identity))
 
-(def transpose (papply map vector))
+(def transpose
+  "Transposes vector of vectors."
+  (papply map vector))
 
 (defn val-or-seq
   [element-type]
@@ -165,7 +177,7 @@
                     :pred x)))
 
 (s/fdef where
-  :args (s/alt :curried (s/cat :filters ::filters)
+  :args (s/alt :curried ::filters
                :full (s/cat :filters ::filters
                             :df (s/nilable coll?)))
   :ret coll?)
@@ -180,7 +192,7 @@
      (into (empty df) (filter (s/conform ::filters filters)) df))))
 
 (s/fdef summarize
-  :args (s/alt :curried (s/cat :f ::summary-fn)
+  :args (s/alt :curried ::summary-fn
                :simple (s/cat :f ::summary-fn
                               :df (s/nilable coll?))
                :keyfn (s/cat :f ::summary-fn
@@ -304,7 +316,7 @@
                    (zipmap (keys f) (repeat (sorted-map)))))))
 
 (s/fdef window
-  :args (s/alt :curried (s/cat :f ifn?)
+  :args (s/alt :curried ifn?
                :simple (s/cat :f ifn?
                               :df (s/nilable coll?))
                :keyfn (s/cat :f ifn?
@@ -336,7 +348,7 @@
   [(count df) (count (first df))])
 
 (s/fdef cols
-  :args (s/cat :df ::dataframe)
+  :args ::dataframe
   :ret coll?)
 
 (defn cols
@@ -417,12 +429,13 @@
     (double (apply / numerator denominators))))
 
 (s/fdef sum
-  :args (s/alt :coll (s/cat :df (s/nilable coll?))
+  :args (s/alt :coll (s/nilable coll?)
                :keyfn (s/cat :keyfn ::keyfn
                              :df (s/nilable coll?)))
   :ret number?)
 
 (defn sum
+  ""
   ([df]
    (sum identity df))
   ([keyfn df]
@@ -437,6 +450,9 @@
   :ret (s/nilable number?))
 
 (defn rate
+  "Returns the quotient of the sum of values extracted by keyfn-a and 
+  keyfn-b.
+  Returns a curried version when only keyfns are provided."
   ([keyfn-a keyfn-b]
    (partial rate keyfn-a keyfn-b))
   ([keyfn-a keyfn-b df]
@@ -456,7 +472,7 @@
                 df))))
 
 (s/fdef share
-  :args (s/alt :curried (s/cat :filters ::filters)
+  :args (s/alt :curried ::filters
                :simple (s/cat :filters ::filters
                               :df (s/nilable coll?))
                :weightfn (s/cat :filters ::filters
@@ -464,6 +480,10 @@
                                 :df (s/nilable coll?))))
 
 (defn share
+  "Returns the share of values in df for which filter returns true.
+  Optionally takes a weightfn to provide weights for each data point.
+  Uses the same filter format as where.
+  Returns a curried version when only filter is provided."
   ([filters]
    (partial share filters))
   ([filters df]
@@ -473,7 +493,7 @@
                 (sum weightfn df))))
 
 (s/fdef mean
-  :args (s/alt :coll (s/cat :df (s/nilable coll?))
+  :args (s/alt :coll (s/nilable coll?)
                :keyfn (s/cat :keyfn ::keyfn
                              :df (s/nilable coll?))
                :weightfn (s/cat :keyfn ::keyfn
@@ -482,6 +502,9 @@
   :ret (s/nilable number?))
 
 (defn mean
+  "Calculates the arithmetic mean.
+  Optionally takes a keyfn to extract the values and weightfn to provide weights 
+  for each data point."
   ([df]
    (mean identity df))
   ([keyfn df]
@@ -491,16 +514,23 @@
          weightfn (->keyfn weightfn)]
      (rate #(* (keyfn %) (weightfn %)) weightfn df))))
 
-(def rollup-mean (pcomp mean rollup-vals))
+(def rollup-mean
+  "Rollup and return the mean of aggregations."
+  (pcomp mean rollup-vals))
 
 (defn top-n
+  "Return n biggest values in coll. 
+  Optionally takes a kefyn to extract the values.
+  Returns a curried version when only n is provided."
+  ([n]
+   (partial top-n n))
   ([n df]
    (top-n n identity df))  
   ([n keyfn df]
    (into (empty df) (take n) (sort-by (->keyfn keyfn) > df))))
 
 (s/fdef distribution
-  :args (s/alt :coll (s/cat :df (s/nilable coll?))
+  :args (s/alt :coll (s/nilable coll?)
                :keyfn (s/cat :keyfn ::keyfn
                              :df (s/nilable coll?))
                :weightfn (s/cat :keyfn ::keyfn
@@ -509,6 +539,9 @@
   :ret (s/and map? sorted?))
 
 (defn distribution
+  "Returns a map between all distinct values in df and their relative frequency. 
+  Optionally takes a keyfn to extract the values and weightfn to provide weights 
+  for each data point."
   ([df]
    (distribution identity df))
   ([keyfn df]
@@ -519,6 +552,9 @@
        (rollup keyfn (comp (partial * norm) sum) weightfn df)))))
 
 (defn extent
+  "Returns a pair of [smallest, biggest] or [earliest, latest] if passed a coll 
+  of dates. 
+  Optionally takes a keyfn to extract the values."
   ([xs]
    (let [[x & xs] xs]
      (r/fold (r/monoid (if (instance? org.joda.time.DateTime x)
