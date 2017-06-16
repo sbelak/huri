@@ -340,7 +340,7 @@ the arguments passed in are not nill. Else returns nil."
      (map f (drop lag xs) xs))))
 
 (s/fdef size
-  :args (s/every coll?)
+  :args (s/cat :df (s/every coll?))
   :ret (s/cat :rows int? :cols int?))
 
 (defn size
@@ -348,7 +348,7 @@ the arguments passed in are not nill. Else returns nil."
   [(count df) (count (first df))])
 
 (s/fdef cols
-  :args ::dataframe
+  :args (s/cat :df ::dataframe)
   :ret coll?)
 
 (defn cols
