@@ -5,8 +5,8 @@
             [clojure.data.priority-map :refer [priority-map-by]]            
             [clj-time.core :as t]
             [clojure.core.reducers :as r]
-            [clojure.spec :as s]
-            [clojure.spec.test :as s.test])
+            [clojure.spec.alpha :as s]
+            [clojure.spec.test.alpha :as s.test])
   (:import org.joda.time.DateTime))
 
 (defn papply
