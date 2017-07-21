@@ -1,5 +1,5 @@
 (ns huri.math
-  (:require [huri.core :refer [safe-divide distribution sum]]
+  (:require [huri.core :refer [safe-divide distribution sum mean]]
             [net.cgrand.xforms :as x]
             [clojure.math.numeric-tower :refer [expt round sqrt abs]]))
 
@@ -81,25 +81,10 @@
   [p q]
   (sqrt (reduce + (map (comp #(* % %) -) p q))))
 
-(defn hellinger-distance
-  [p q]
-  (/ (transduce identity magnitude (map #(- (sqrt %1) (sqrt %2)) p q))
-     (sqrt 2)))
-
 (defn center
   [p]
-  (let [mu (transduce identity stats/mean p)]
+  (let [mu (mean p)]
     (map #(- % mu) p)))
-
-(defn correlation-distance
-  [p q]
-  (cosine-distance (center p) (center q)))
-
-(defn cosine-distance
-  [a b]
-  (- 1 (/ (reduce + (map * a b))
-          (transduce identity magnitude a)
-          (transduce identity magnitude b))))
 
 (defn em-distance
   [a b]
