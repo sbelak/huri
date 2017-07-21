@@ -1,7 +1,7 @@
 (ns huri.math
   (:require [huri.core :refer [safe-divide distribution sum]]
             [net.cgrand.xforms :as x]
-            [clojure.math.numeric-tower :refer [expt round]]))
+            [clojure.math.numeric-tower :refer [expt round sqrt abs]]))
 
 (defn smooth
   [window xs]
@@ -9,7 +9,7 @@
 
 (defn growth
   [b a]
-  (safe-divide (* (if (neg? a) -1 1) (- b a)) a)) 
+  (safe-divide (* (if (neg? a) -1 1) (- b a)) a))
 
 (defn decay
   [lambda t]
@@ -57,3 +57,60 @@
        (recur tail (- percentile p) (assoc acc k percentile))
        acc))))
 
+(defn kl-divergence
+  "Kullback-Leibler divergence of discrete probability distributions `p` and `q`.
+   https://en.wikipedia.org/wiki/Kullback%E2%80%93Leibler_divergence"
+  [p q]
+  (reduce + (map (fn [pi qi]
+                   (if (or (zero? pi) (zero? qi))
+                     0
+                     (* pi (Math/log (/ pi qi)))))
+                 p q)))
+
+(defn js-divergence
+  "Jensen-Shannon divergence of discrete probability distributions `p` and `q`.
+   Note returned is the square root of JS-divergence, so that it obeys the
+   metric laws.
+   https://en.wikipedia.org/wiki/Jensen%E2%80%93Shannon_divergence"
+  [p q]
+  (let [m (map (comp (partial * 0.5) +) p q)]
+    (sqrt (+ (* 0.5 (kl-divergence p m)) (* 0.5 (kl-divergence q m))))))
+
+(defn euclidean-distance
+  "Euclidean distance between vectors `p` and `q`."
+  [p q]
+  (sqrt (reduce + (map (comp #(* % %) -) p q))))
+
+(defn hellinger-distance
+  [p q]
+  (/ (transduce identity magnitude (map #(- (sqrt %1) (sqrt %2)) p q))
+     (sqrt 2)))
+
+(defn center
+  [p]
+  (let [mu (transduce identity stats/mean p)]
+    (map #(- % mu) p)))
+
+(defn correlation-distance
+  [p q]
+  (cosine-distance (center p) (center q)))
+
+(defn cosine-distance
+  [a b]
+  (- 1 (/ (reduce + (map * a b))
+          (transduce identity magnitude a)
+          (transduce identity magnitude b))))
+
+(defn em-distance
+  [a b]
+  (transduce identity
+             (fn
+               ([]
+                {:total-distance 0
+                 :last-distance  0})
+               ([{:keys [total-distance]}] total-distance)
+               ([{:keys [total-distance last-distance]} delta]
+                (let [current-distance (+ delta last-distance)]
+                  {:total-distance (+ total-distance (abs current-distance))
+                   :last-distance current-distance})))
+          (map - a b)))
