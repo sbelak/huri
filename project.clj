@@ -1,4 +1,4 @@
-(defproject huri "0.10.0-SNAPSHOT"
+(defproject huri "0.11.0-SNAPSHOT"
   :description "Tools for the lazy data scientist"
   :url "https://github.com/sbelak/huri"
   :license {:name "Eclipse Public License"
@@ -11,4 +11,5 @@
                  [net.cgrand/xforms "0.9.3"]
                  [cheshire "5.7.1"]
                  [com.taoensso/timbre "4.10.0"]
-                 [gorilla-renderable "2.0.0"]])
+                 [gorilla-renderable "2.0.0"]
+                 [hiccup "1.0.5"]])
