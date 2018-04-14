@@ -321,6 +321,11 @@
                         (last params))
         body (last args)]
     `(defn ~name
+       {:arglists '([~'df]
+                    ~@(if y
+                        `[[~'options ~'df] [~@positional-params ~'df]]
+                        `[[~'arg ~'df]])
+                    [~@positional-params ~'options ~'df])}
        ([df#]
         (~name ~@(if y
                    [:x__auto :y__auto]
