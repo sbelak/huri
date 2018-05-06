@@ -21,6 +21,10 @@
   [s]
   (str "\"" s "\""))
 
+(defn- escape-backslash
+  [s]
+  (s/replace s "\\" "\\\\"))
+
 (defn- function-name  
   [f]
   (case f
@@ -51,7 +55,7 @@
                      (fn-from-vec code))
     (map? code) (named-args-from-map code)
     (keyword? code) (name code)
-    (string? code) (quote-string code)
+    (string? code) (escape-backslash (quote-string code))
     (or (true? code) (false? code)) (s/upper-case (str code))
     :else (pr-str code)))
 
