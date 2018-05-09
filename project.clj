@@ -3,9 +3,9 @@
   :url "https://github.com/sbelak/huri"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.9.0-alpha17"]
+  :dependencies [[org.clojure/clojure "1.9.0"]
                  [clj-time "0.13.0"]
-                 [prismatic/plumbing "0.5.4"]
+                 [prismatic/plumbing "0.5.5"]
                  [org.clojure/math.numeric-tower "0.0.4"]
                  [org.clojure/data.priority-map "0.0.7"]
                  [net.cgrand/xforms "0.9.3"]
