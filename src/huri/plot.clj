@@ -496,7 +496,7 @@
                                   aesthetics))]
      (when show-mean?
        [:geom_vline [:aes {:xintercept [:mean x]}] {:linetype "dashed"
-                                                    :color (or group-by colour)
+                                                    :colour colour
                                                     :size 0.5}])
      [:geom_hline {:yintercept 0 :size 0.4 :colour "black"}]]))
 
