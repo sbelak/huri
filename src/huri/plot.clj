@@ -9,7 +9,7 @@
             [clojure.java.shell :as shell]            
             [clojure.walk :as walk]
             [gorilla-renderable.core :as render]
-            [clojure.xml :as xml]
+            [clojure.data.xml :as xml]
             [clj-time.core :as t])
   (:import org.joda.time.DateTime
            java.io.File
@@ -85,11 +85,11 @@
   This function is a workaround for that. It takes an SVG string and replaces 
   the ids with globally unique ids, returning a string."
   [svg]
-  (let [svg (xml/parse (java.io.ByteArrayInputStream. (.getBytes svg)))
+  (let [svg (xml/parse-str svg)
         smap (fresh-ids svg)
         mangle (fn [x]
                  (if (map? x)
-                   (into {}
+                   (into (with-meta {} (meta x))
                      (for [[k v] x]
                        [k (if (or (= :id k)
                                   (and (string? v)
@@ -98,8 +98,7 @@
                             (smap v)
                             v)]))
                    x))]
-    (with-out-str
-      (xml/emit (walk/prewalk mangle svg)))))
+    (xml/emit-str (walk/prewalk mangle svg))))
 
 (defn render
   ([plot-command]
