@@ -3,11 +3,9 @@
                                     map-from-vals map-from-keys]])
             [net.cgrand.xforms :as x]
             [clojure.data.priority-map :refer [priority-map-by]]            
-            [clj-time.core :as t]
             [clojure.core.reducers :as r]
             [clojure.spec.alpha :as s]
-            [clojure.spec.test.alpha :as s.test])
-  (:import org.joda.time.DateTime))
+            [clojure.spec.test.alpha :as s.test]))
 
 (defn papply
   "partial that applies its arguments."
@@ -557,9 +555,10 @@ the arguments passed in are not nill. Else returns nil."
   Optionally takes a keyfn to extract the values."
   ([xs]
    (let [[x & xs] xs]
-     (r/fold (r/monoid (if (instance? org.joda.time.DateTime x)
+     (r/fold (r/monoid (if (inst? x)
                          (fn [[acc-min acc-max] x]
-                           [(t/earliest acc-min x) (t/latest acc-max x)])
+                           [(min-key inst-ms acc-min x)
+                            (max-key inst-ms acc-max x)])
                          (fn [[acc-min acc-max] x]
                            [(min acc-min x) (max acc-max x)]))
                        (constantly [x x]))             
