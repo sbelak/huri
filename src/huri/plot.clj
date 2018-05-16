@@ -10,7 +10,8 @@
             [clojure.walk :as walk]
             [gorilla-renderable.core :as render]
             [clojure.xml :as xml]
-            [clj-time.core :as t])
+            [clj-time.core :as t]
+            [clj-time.coerce :as tc])
   (:import org.joda.time.DateTime
            java.io.File
            java.util.UUID))
@@ -147,6 +148,13 @@
               (str "g" sanitized)
               sanitized))))
 
+(defmacro ^:private when-class
+  [sym & body]
+  (try
+    (Class/forName (name sym))
+    `(do ~@body)
+    (catch ClassNotFoundException _)))
+
 (defmulti ->r-type class)
 
 (defmethod ->r-type clojure.lang.Keyword
@@ -188,6 +196,15 @@
 (defmethod ->r-type :default
   [x]
   (str x))
+
+(defmethod ->r-type java.util.Date
+  [x]
+  (->r-type (tc/from-date x)))
+
+(when-class java.time.Instant
+  (defmethod ->r-type java.time.Instant
+    [x]
+    [:as.Date (str x)]))
 
 (defmethod ->r-type org.joda.time.DateTime
   [x]
@@ -238,14 +255,14 @@
   [df]
   (map-vals (comp #(cond
                      (number? %) :number
-                     (instance? org.joda.time.DateTime %) :date
+                     (inst? %) :date
                      :else :categorical)
                   first)
             df))
 
 (defn- date-scale-resolution
-  [dts]  
-  (let [[start end] (extent dts)]
+  [dts]
+  (let [[start end] (map (comp tc/from-long inst-ms) (extent dts))]
     (if (< (t/in-days (t/interval start end)) 90)
       "%d-%b"
       "%b-%y")))
