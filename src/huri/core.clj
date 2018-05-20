@@ -296,9 +296,9 @@ the arguments passed in are not nill. Else returns nil."
 
 (s/fdef rollup-transpose
   :args (s/alt :curried (s/cat :indexfn ::keyfn
-                               :f (s/and ::summary-fn map?))
+                               :f (s/and map? ::summary-fn))
                :full (s/cat :indexfn ::keyfn
-                            :f (s/and ::summary-fn map?)
+                            :f (s/and map? ::summary-fn)
                             :df (s/nilable coll?)))
   :ret map?)
 
