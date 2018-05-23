@@ -500,6 +500,14 @@
                                                     :size 0.5}])
      [:geom_hline {:yintercept 0 :size 0.4 :colour "black"}]]))
 
+(defplot cdf-plot x {:pad? true}
+  [[:ggplot :g [:aes x (if group-by
+                         {:colour group-by}
+                         {})]]
+   [:stat_ecdf (merge {:pad pad?}
+                      (when-not group-by
+                        {:colour colour}))]])
+
 (defplot line-chart x y {:show-points? :auto
                          :fill? false
                          :alpha 0.5
