@@ -382,6 +382,25 @@ the arguments passed in are not nill. Else returns nil."
                             (hc/cols df))  
                     df))
 
+(defn compare-by [& key-cmp-pairs]
+    "Adapted this function from https://groups.google.com/d/msg/clojure/VVVa3TS15pU/pT3iG_W2VroJ
+    Changed how nil is handled. Now it's always sorted last."
+    (fn [x y] 
+      (loop [[map-k cmp-k & more] key-cmp-pairs] 
+         (let [x' (map-k x)
+               y' (map-k y)
+               compare-fn (cmp-k {:asc compare :desc #(compare %2 %1)})
+               result (compare-fn x' y')] 
+             (cond 
+                 (and (= nil x' y') more)  (recur more)
+                 (= nil x' y')             0
+                 (nil? x')                 1
+                 (nil? y')                 -1
+                 (and (zero? result) more) (recur more)
+                 :else                     result)))))          
+;; (sort (compare-by :a :asc :b :desc) [{:a 3 :b 3} {:a 2 :b 4}{:a nil :b 4} {:a nil :b nil} {:a nil :b 5}]) 
+;; => ({:a 2, :b 4} {:a 3, :b 3} {:a nil, :b 5} {:a nil, :b 4} {:a nil, :b nil}) 
+
 (s/def ::join-on (s/and
                   (s/or :vec (s/cat :left ::keyfn :right ::keyfn)
                         :singleton ::keyfn)
