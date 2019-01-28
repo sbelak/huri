@@ -375,6 +375,13 @@ the arguments passed in are not nill. Else returns nil."
   [cols df]
   (map (juxtm (map-from-keys ->keyfn cols)) df))
 
+(defn select-cols-regex 
+    [pattern df] 
+    (hc/select-cols (filter #(re-matches pattern 
+                                         (name %)) 
+                            (hc/cols df))  
+                    df))
+
 (s/def ::join-on (s/and
                   (s/or :vec (s/cat :left ::keyfn :right ::keyfn)
                         :singleton ::keyfn)
