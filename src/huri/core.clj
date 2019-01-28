@@ -375,29 +375,32 @@ the arguments passed in are not nill. Else returns nil."
   [cols df]
   (map (juxtm (map-from-keys ->keyfn cols)) df))
 
-(defn select-cols-regex 
-    [pattern df] 
-    (hc/select-cols (filter #(re-matches pattern 
-                                         (name %)) 
-                            (hc/cols df))  
-                    df))
+(defn filter-cols 
+  [pred df]
+   "filters the column name keywords with pred and selects all remaining columns"
+   (select-cols (filter pred (cols df)) df))
+
+(defn select-cols-regex
+  "select the columns whose stringified keyword match the regular expression"
+  [pattern df] 
+  (filter-cols #(re-matches pattern (name %)) df))
 
 (defn compare-by [& key-cmp-pairs]
-    "Adapted this function from https://groups.google.com/d/msg/clojure/VVVa3TS15pU/pT3iG_W2VroJ
-    Changed how nil is handled. Now it's always sorted last."
-    (fn [x y] 
-      (loop [[map-k cmp-k & more] key-cmp-pairs] 
-         (let [x' (map-k x)
-               y' (map-k y)
-               compare-fn (cmp-k {:asc compare :desc #(compare %2 %1)})
-               result (compare-fn x' y')] 
-             (cond 
-                 (and (= nil x' y') more)  (recur more)
-                 (= nil x' y')             0
-                 (nil? x')                 1
-                 (nil? y')                 -1
-                 (and (zero? result) more) (recur more)
-                 :else                     result)))))          
+  "Adapted this function from https://groups.google.com/d/msg/clojure/VVVa3TS15pU/pT3iG_W2VroJ
+  Changed how nil is handled. Now it's always sorted last."
+  (fn [x y] 
+    (loop [[map-k cmp-k & more] key-cmp-pairs] 
+      (let [x' (map-k x)
+            y' (map-k y)
+            compare-fn (cmp-k {:asc compare :desc #(compare %2 %1)})
+            result (compare-fn x' y')] 
+        (cond 
+          (and (= nil x' y') more)  (recur more)
+          (= nil x' y')             0
+          (nil? x')                 1
+          (nil? y')                 -1
+          (and (zero? result) more) (recur more)
+          :else                     result)))))          
 ;; (sort (compare-by :a :asc :b :desc) [{:a 3 :b 3} {:a 2 :b 4}{:a nil :b 4} {:a nil :b nil} {:a nil :b 5}]) 
 ;; => ({:a 2, :b 4} {:a 3, :b 3} {:a nil, :b 5} {:a nil, :b 4} {:a nil, :b nil}) 
 
