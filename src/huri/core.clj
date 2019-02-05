@@ -129,6 +129,23 @@ the arguments passed in are not nill. Else returns nil."
             (apply comp))
        df))
 
+(defn derive-cols* [new-cols df] 
+    "respects ordering of the operations.
+    
+    ```clojure 
+    (= (derive-cols* (ordered-map :c [inc :b] :d [inc :c]) [{:a 1 :b 2}{:a 3 :b 10}])  
+       (derive-cols*             [:c [inc :b] :d [inc :c]] [{:a 1 :b 2}{:a 3 :b 10}])
+       '({:a 1, :b 2, :c 3, :d 4} {:a 3, :b 10, :c 11, :d 12})) ; => true
+    ```
+    "
+    (loop [[k op-vec & remaining :as new-cols']  (if (map? new-cols) 
+                                                (mapcat vec new-cols) 
+                                                new-cols) 
+           df df]
+        (if (seq new-cols')
+            (recur remaining (derive-cols {k op-vec} df))  
+            df)))
+
 (defn update-cols
   [update-fns df]
   (derive-cols (for-map [[k f] update-fns]
@@ -374,6 +391,30 @@ the arguments passed in are not nill. Else returns nil."
 (defn select-cols
   [cols df]
   (map (juxtm (map-from-keys ->keyfn cols)) df))
+
+(defn filter-cols 
+  [pred df]
+   "filters the column name keywords with pred and selects all remaining columns"
+   (select-cols (filter pred (cols df)) df))
+
+(defn compare-by [& key-cmp-pairs]
+  "Adapted this function from https://groups.google.com/d/msg/clojure/VVVa3TS15pU/pT3iG_W2VroJ
+  Changed how nil is handled. Now it's always sorted last."
+  (fn [x y] 
+    (loop [[map-k cmp-k & more] key-cmp-pairs] 
+      (let [x' (map-k x)
+            y' (map-k y)
+            compare-fn (cmp-k {:asc compare :desc #(compare %2 %1)})
+            result (compare-fn x' y')] 
+        (cond 
+          (and (= nil x' y') more)  (recur more)
+          (= nil x' y')             0
+          (nil? x')                 1
+          (nil? y')                 -1
+          (and (zero? result) more) (recur more)
+          :else                     result)))))          
+;; (sort (compare-by :a :asc :b :desc) [{:a 3 :b 3} {:a 2 :b 4}{:a nil :b 4} {:a nil :b nil} {:a nil :b 5}]) 
+;; => ({:a 2, :b 4} {:a 3, :b 3} {:a nil, :b 5} {:a nil, :b 4} {:a nil, :b nil}) 
 
 (s/def ::join-on (s/and
                   (s/or :vec (s/cat :left ::keyfn :right ::keyfn)
