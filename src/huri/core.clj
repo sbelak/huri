@@ -380,11 +380,6 @@ the arguments passed in are not nill. Else returns nil."
    "filters the column name keywords with pred and selects all remaining columns"
    (select-cols (filter pred (cols df)) df))
 
-(defn select-cols-regex
-  "select the columns whose stringified keyword match the regular expression"
-  [pattern df] 
-  (filter-cols #(re-matches pattern (name %)) df))
-
 (defn compare-by [& key-cmp-pairs]
   "Adapted this function from https://groups.google.com/d/msg/clojure/VVVa3TS15pU/pT3iG_W2VroJ
   Changed how nil is handled. Now it's always sorted last."
