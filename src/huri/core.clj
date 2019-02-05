@@ -129,6 +129,23 @@ the arguments passed in are not nill. Else returns nil."
             (apply comp))
        df))
 
+(defn derive-cols* [new-cols df] 
+    "respects ordering of the operations.
+    
+    ```clojure 
+    (= (derive-cols* (ordered-map :c [inc :b] :d [inc :c]) [{:a 1 :b 2}{:a 3 :b 10}])  
+       (derive-cols*             [:c [inc :b] :d [inc :c]] [{:a 1 :b 2}{:a 3 :b 10}])
+       '({:a 1, :b 2, :c 3, :d 4} {:a 3, :b 10, :c 11, :d 12})) ; => true
+    ```
+    "
+    (loop [[k op-vec & remaining :as new-cols']  (if (map? new-cols) 
+                                                (mapcat vec new-cols) 
+                                                new-cols) 
+           df df]
+        (if (seq new-cols')
+            (recur remaining (derive-cols {k op-vec} df))  
+            df)))
+
 (defn update-cols
   [update-fns df]
   (derive-cols (for-map [[k f] update-fns]
